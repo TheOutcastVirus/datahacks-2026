@@ -154,6 +154,45 @@ export default function SplatViewer({
   }, [clampedFloodProgress]);
 
   useEffect(() => {
+    if (usePlyRenderer) return;
+
+    const moveKeys = new Set([
+      'KeyW',
+      'KeyS',
+      'KeyA',
+      'KeyD',
+      'ArrowUp',
+      'ArrowDown',
+      'ArrowLeft',
+      'ArrowRight',
+      'KeyQ',
+      'KeyE',
+      'Space',
+    ]);
+    const forward = (event: KeyboardEvent) => {
+      if (!moveKeys.has(event.code)) return;
+      event.preventDefault();
+      iframeRef.current?.contentWindow?.postMessage(
+        { type: 'splat-keydown', code: event.code },
+        '*',
+      );
+    };
+    const release = (event: KeyboardEvent) => {
+      if (!moveKeys.has(event.code)) return;
+      iframeRef.current?.contentWindow?.postMessage(
+        { type: 'splat-keyup', code: event.code },
+        '*',
+      );
+    };
+    window.addEventListener('keydown', forward);
+    window.addEventListener('keyup', release);
+    return () => {
+      window.removeEventListener('keydown', forward);
+      window.removeEventListener('keyup', release);
+    };
+  }, [usePlyRenderer]);
+
+  useEffect(() => {
     if (!usePlyRenderer) return;
 
     const canvasHost = canvasHostRef.current;
@@ -170,8 +209,8 @@ export default function SplatViewer({
     let controls: OrbitControlsType | null = null;
     let geometryToDispose: import('three').BufferGeometry | null = null;
     let materialToDispose: import('three').Material | null = null;
-    let onKeyDown: ((e: KeyboardEvent) => void) | null = null;
-    let onKeyUp: ((e: KeyboardEvent) => void) | null = null;
+    let onKeyDown: ((event: KeyboardEvent) => void) | null = null;
+    let onKeyUp: ((event: KeyboardEvent) => void) | null = null;
 
     const boot = async () => {
       try {
@@ -338,13 +377,22 @@ export default function SplatViewer({
         resizeObserver = new ResizeObserver(fitCamera);
         resizeObserver.observe(canvasHost);
 
-        const MOVE_KEYS = new Set(['KeyW','KeyS','KeyA','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight']);
+        const moveKeys = new Set([
+          'KeyW',
+          'KeyS',
+          'KeyA',
+          'KeyD',
+          'ArrowUp',
+          'ArrowDown',
+          'ArrowLeft',
+          'ArrowRight',
+        ]);
         const keysDown = new Set<string>();
-        onKeyDown = (e: KeyboardEvent) => {
-          if (MOVE_KEYS.has(e.code)) e.preventDefault();
-          keysDown.add(e.code);
+        onKeyDown = (event: KeyboardEvent) => {
+          if (moveKeys.has(event.code)) event.preventDefault();
+          keysDown.add(event.code);
         };
-        onKeyUp = (e: KeyboardEvent) => keysDown.delete(e.code);
+        onKeyUp = (event: KeyboardEvent) => keysDown.delete(event.code);
         window.addEventListener('keydown', onKeyDown);
         window.addEventListener('keyup', onKeyUp);
 
@@ -459,7 +507,7 @@ export default function SplatViewer({
 
     const drawLandmarks = (
       landmarks: import('@mediapipe/tasks-vision').NormalizedLandmark[] | undefined,
-      MediaPipe: typeof import('@mediapipe/tasks-vision'),
+      mediaPipe: typeof import('@mediapipe/tasks-vision'),
     ) => {
       const overlay = videoOverlayRef.current;
       const video = videoRef.current;
@@ -476,8 +524,8 @@ export default function SplatViewer({
 
       if (!landmarks) return;
 
-      drawingUtils ??= new MediaPipe.DrawingUtils(context);
-      drawingUtils.drawConnectors(landmarks, MediaPipe.HandLandmarker.HAND_CONNECTIONS, {
+      drawingUtils ??= new mediaPipe.DrawingUtils(context);
+      drawingUtils.drawConnectors(landmarks, mediaPipe.HandLandmarker.HAND_CONNECTIONS, {
         color: 'rgba(0, 212, 180, 0.85)',
         lineWidth: 2,
       });
@@ -504,15 +552,15 @@ export default function SplatViewer({
         }
 
         updateHandStatus('initializing', 'Loading MediaPipe hand tracking…');
-        const MediaPipe = await import('@mediapipe/tasks-vision');
+        const mediaPipe = await import('@mediapipe/tasks-vision');
         if (isDisposed) return;
 
-        const vision = await MediaPipe.FilesetResolver.forVisionTasks(
+        const vision = await mediaPipe.FilesetResolver.forVisionTasks(
           HAND_LANDMARKER_WASM_URL,
         );
         if (isDisposed) return;
 
-        handLandmarker = await MediaPipe.HandLandmarker.createFromOptions(vision, {
+        handLandmarker = await mediaPipe.HandLandmarker.createFromOptions(vision, {
           baseOptions: {
             modelAssetPath: HAND_LANDMARKER_MODEL_URL,
             delegate: 'GPU',
@@ -570,7 +618,7 @@ export default function SplatViewer({
             performance.now(),
           );
           const landmarks = result.landmarks[0];
-          drawLandmarks(landmarks, MediaPipe);
+          drawLandmarks(landmarks, mediaPipe);
 
           if (!landmarks?.length) {
             resetGestureState();
@@ -896,13 +944,33 @@ export default function SplatViewer({
                   width: '100%',
                   height: '100%',
                   transform: 'scaleX(-1)',
+                  pointerEvents: 'none',
                 }}
               />
+              {handStatus === 'permission-denied' ? (
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'grid',
+                    placeItems: 'center',
+                    padding: 18,
+                    textAlign: 'center',
+                    fontFamily: 'var(--font-body)',
+                    fontSize: '12px',
+                    lineHeight: 1.45,
+                    color: '#fca5a5',
+                    background: 'rgba(2, 10, 18, 0.82)',
+                  }}
+                >
+                  Camera permission denied. Allow webcam access to use hand control.
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>
       </div>
-      {viewerState !== 'ready' ? (
+      {viewerState === 'loading' ? (
         <div
           style={{
             position: 'absolute',
@@ -919,7 +987,41 @@ export default function SplatViewer({
             background: 'linear-gradient(180deg, rgba(2,10,18,0.2), rgba(2,10,18,0.85))',
           }}
         >
-          {viewerState === 'error' ? errorMessage ?? 'PLY load failed' : 'Loading PLY scene'}
+          Loading {usePlyRenderer ? 'PLY scene' : 'Gaussian splat'}
+        </div>
+      ) : null}
+      {viewerState === 'error' ? (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'grid',
+            placeItems: 'center',
+            padding: 24,
+            textAlign: 'center',
+            background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.92), rgba(2, 6, 23, 0.96))',
+            color: '#fca5a5',
+            fontFamily: 'var(--font-body)',
+            zIndex: 30,
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: '10px',
+                letterSpacing: '0.18em',
+                textTransform: 'uppercase',
+                marginBottom: 10,
+                color: 'rgba(252, 165, 165, 0.82)',
+              }}
+            >
+              Viewer Error
+            </div>
+            <div style={{ fontSize: '14px', lineHeight: 1.6 }}>
+              {errorMessage ?? 'Unable to load 3D scene.'}
+            </div>
+          </div>
         </div>
       ) : null}
     </div>

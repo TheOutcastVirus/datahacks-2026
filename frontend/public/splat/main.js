@@ -910,6 +910,15 @@ async function main() {
     window.addEventListener("message", (event) => {
         if (event.origin !== window.location.origin) return;
         const data = event.data;
+        if (data && data.type === "splat-keydown") {
+            if (!activeKeys.includes(data.code)) activeKeys.push(data.code);
+            carousel = false;
+            return;
+        }
+        if (data && data.type === "splat-keyup") {
+            activeKeys = activeKeys.filter((k) => k !== data.code);
+            return;
+        }
         if (!data || data.type !== "splat-hand-control") return;
 
         if (data.action === "orbit") {
@@ -1075,13 +1084,13 @@ async function main() {
         e.preventDefault();
         if (down == 1) {
             let inv = invert4(viewMatrix);
-            let dx = (5 * (e.clientX - startX)) / viewW;
-            let dy = (5 * (e.clientY - startY)) / viewH;
+            let dx = (3 * (e.clientX - startX)) / viewW;
+            let dy = (3 * (e.clientY - startY)) / viewH;
             let d = 4;
 
             inv = translate4(inv, 0, 0, d);
-            inv = rotate4(inv, dx, 0, 1, 0);
-            inv = rotate4(inv, -dy, 1, 0, 0);
+            inv = rotate4(inv, dx * 0.6, 0, 1, 0);
+            inv = rotate4(inv, -dy * 0.6, 1, 0, 0);
             inv = translate4(inv, 0, 0, -d);
             // let postAngle = Math.atan2(inv[0], inv[10])
             // inv = rotate4(inv, postAngle - preAngle, 0, 0, 1)
@@ -1259,12 +1268,12 @@ async function main() {
         if (activeKeys.includes("ArrowRight"))
             inv = translate4(inv, 0.03, 0, 0);
         // inv = rotate4(inv, 0.01, 0, 1, 0);
-        if (activeKeys.includes("KeyA")) inv = rotate4(inv, -0.01, 0, 1, 0);
-        if (activeKeys.includes("KeyD")) inv = rotate4(inv, 0.01, 0, 1, 0);
+        if (activeKeys.includes("KeyA")) inv = translate4(inv, -0.05, 0, 0);
+        if (activeKeys.includes("KeyD")) inv = translate4(inv, 0.05, 0, 0);
         if (activeKeys.includes("KeyQ")) inv = rotate4(inv, 0.01, 0, 0, 1);
         if (activeKeys.includes("KeyE")) inv = rotate4(inv, -0.01, 0, 0, 1);
-        if (activeKeys.includes("KeyW")) inv = rotate4(inv, 0.005, 1, 0, 0);
-        if (activeKeys.includes("KeyS")) inv = rotate4(inv, -0.005, 1, 0, 0);
+        if (activeKeys.includes("KeyW")) inv = translate4(inv, 0, 0, 0.1);
+        if (activeKeys.includes("KeyS")) inv = translate4(inv, 0, 0, -0.1);
 
         const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
         let isJumping = activeKeys.includes("Space");
