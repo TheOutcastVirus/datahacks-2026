@@ -1,0 +1,9 @@
+# Gaussian splat / 3DGS assets (large binaries)
+3dgs_compressed.ply
+.ply
+Cabbage-mvs_1012_04.ply
+# Environment and secrets
+.env
+.env.*
+!.env.example
+.ply

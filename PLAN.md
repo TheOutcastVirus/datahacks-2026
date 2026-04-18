@@ -1,9 +1,11 @@
 ```markdown
-# plan.md — Sea Level Rise Modeling & Visualization
+# Sojs — Sea Level Rise Modeling & Visualization
+
+Project name: **Sojs**. Use "Sojs" as the canonical name in docs, UI, and metadata.
 
 ## Project Overview
 Build a 3D world visualization that models sea level rise scenarios, powered by a prediction model trained on climate data. The system should display realistic flooding of real-world locations.
- this is a general overview plan. You should use this very loosely and always update, make sure to update tasks if you're an AI directly in here 
+This is a general overview plan. Use this loosely and update tasks directly in this file as the project evolves.
 
 ---
 

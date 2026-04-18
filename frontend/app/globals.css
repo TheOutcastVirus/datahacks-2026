@@ -1,0 +1,221 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #030c16;
+  --bg-surface: #061525;
+  --border: rgba(0, 212, 180, 0.1);
+  --border-bright: rgba(0, 212, 180, 0.28);
+  --accent: #00d4b4;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --text-hi: #d6f0f8;
+  --text-mid: #6cb4cc;
+  --text-lo: #2d6880;
+  --font-display: var(--font-syne), sans-serif;
+  --font-body: var(--font-jakarta), sans-serif;
+  --font-mono: var(--font-mono), monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text-hi);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Next.js root wrapper — fill viewport so nested grids get real height */
+body > div {
+  min-height: 100%;
+  height: 100%;
+}
+
+/* ---- APP SHELL ---- */
+.app {
+  display: grid;
+  grid-template-rows: 64px 1fr;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+/* ---- HEADER ---- */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 40px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  z-index: 50;
+}
+
+.logo {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: 0.16em;
+  color: var(--text-hi);
+  text-transform: uppercase;
+}
+.logo-accent { color: var(--accent); }
+
+.header-sub {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--text-lo);
+  letter-spacing: 0.02em;
+}
+
+.header-nav {
+  display: flex;
+  gap: 2px;
+}
+
+.nav-btn {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  padding: 7px 16px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-lo);
+  cursor: pointer;
+  border-radius: 0;
+  text-transform: uppercase;
+  transition: color 0.2s, border-color 0.2s;
+}
+.nav-btn:hover {
+  color: rgba(214, 240, 248, 0.5);
+}
+.nav-btn.active {
+  border: 1px solid var(--border-bright);
+  color: var(--text-hi);
+}
+
+/* ---- VIEWPORT ---- */
+.viewport {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 24px 28px;
+  overflow: auto;
+  width: 100%;
+  height: 100%;
+  min-height: calc(100vh - 64px);
+  background: radial-gradient(ellipse at 50% 80%, #041830 0%, #020a12 100%);
+}
+
+/* Capped “theater” size: not full screen (lighter GPU load), fills most laptops */
+.splat-stage {
+  position: relative;
+  width: min(1080px, calc(100vw - 48px));
+  height: min(620px, calc(100vh - 64px - 100px));
+  flex-shrink: 0;
+  border: 1px solid var(--border-bright);
+  background: #020a12;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.4),
+    0 28px 56px rgba(0, 0, 0, 0.45);
+  contain: strict;
+}
+
+/* ---- SPLAT IFRAME ---- */
+.splat-wrap {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 100%;
+  min-height: 100%;
+  border: 0;
+}
+
+/* ---- STATS PANEL ---- */
+.stats-panel {
+  position: absolute;
+  top: 28px;
+  right: 28px;
+  z-index: 10;
+  background: rgba(3, 12, 22, 0.88);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  padding: 24px 28px;
+  min-width: 180px;
+}
+
+.stats-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--text-lo);
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.stats-rise {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: 56px;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  transition: color 0.8s ease;
+}
+
+.stats-rise-unit {
+  font-family: var(--font-body);
+  font-size: 20px;
+  font-weight: 400;
+  opacity: 0.5;
+  margin-left: 3px;
+}
+
+.stats-year {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text-hi);
+  margin-top: 16px;
+  letter-spacing: 0.06em;
+}
+
+.stats-scenario {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--text-lo);
+  margin-top: 2px;
+}
+
+/* ---- ATTRIBUTION PANEL ---- */
+.attr-panel {
+  position: absolute;
+  bottom: 24px;
+  left: 28px;
+  z-index: 10;
+  border-left: 2px solid var(--border-bright);
+  padding: 4px 0 4px 16px;
+}
+
+.attr-title {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  color: var(--text-lo);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.attr-item {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--text-mid);
+  margin-bottom: 5px;
+  opacity: 0.8;
+}
