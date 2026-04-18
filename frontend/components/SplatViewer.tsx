@@ -36,6 +36,31 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
+function sendSplatGesture(
+  targetWindow: Window | null | undefined,
+  message:
+    | { type: 'splat-hand-control'; action: 'orbit'; dx: number; dy: number }
+    | { type: 'splat-hand-control'; action: 'zoom'; delta: number },
+) {
+  if (!targetWindow) return;
+
+  type SplatControlWindow = Window & {
+    __splatHandControl?: {
+      orbit?: (dx: number, dy: number) => void;
+      zoom?: (delta: number) => void;
+    };
+  };
+
+  const splatWindow = targetWindow as SplatControlWindow;
+  if (message.action === 'orbit') {
+    splatWindow.__splatHandControl?.orbit?.(message.dx, message.dy);
+  } else {
+    splatWindow.__splatHandControl?.zoom?.(message.delta);
+  }
+
+  splatWindow.postMessage(message, location.origin);
+}
+
 export default function SplatViewer({
   splatUrl,
   renderer = 'auto',
@@ -44,6 +69,7 @@ export default function SplatViewer({
   renderer?: 'auto' | 'ply' | 'splat';
 }) {
   const canvasHostRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoOverlayRef = useRef<HTMLCanvasElement>(null);
   const controlsRef = useRef<OrbitControlsType | null>(null);
@@ -190,8 +216,12 @@ export default function SplatViewer({
         resizeObserver = new ResizeObserver(fitCamera);
         resizeObserver.observe(canvasHost);
 
+        const MOVE_KEYS = new Set(['KeyW','KeyS','KeyA','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight']);
         const keysDown = new Set<string>();
-        onKeyDown = (e: KeyboardEvent) => keysDown.add(e.code);
+        onKeyDown = (e: KeyboardEvent) => {
+          if (MOVE_KEYS.has(e.code)) e.preventDefault();
+          keysDown.add(e.code);
+        };
         onKeyUp = (e: KeyboardEvent) => keysDown.delete(e.code);
         window.addEventListener('keydown', onKeyDown);
         window.addEventListener('keyup', onKeyUp);
@@ -253,7 +283,7 @@ export default function SplatViewer({
   }, [splatUrl, usePlyRenderer]);
 
   useEffect(() => {
-    if (!usePlyRenderer || !handControlEnabled || viewerState !== 'ready') return;
+    if (!handControlEnabled || viewerState !== 'ready') return;
 
     const videoElement = videoRef.current;
     let isDisposed = false;
@@ -385,7 +415,12 @@ export default function SplatViewer({
 
           const controls = controlsRef.current;
           const currentVideo = videoRef.current;
-          if (!controls || !currentVideo || !handLandmarker) {
+          const splatWindow = iframeRef.current?.contentWindow ?? null;
+          if (
+            !currentVideo ||
+            !handLandmarker ||
+            (usePlyRenderer ? !controls : !splatWindow)
+          ) {
             animationFrameId = window.requestAnimationFrame(step);
             return;
           }
@@ -468,13 +503,25 @@ export default function SplatViewer({
           if (pinchZoomActive && prevHandScale !== null) {
             const scaleDelta = smoothedHandScale - prevHandScale;
             if (Math.abs(scaleDelta) > SCALE_ZOOM_DEADZONE) {
-              const zoomScale = 1 + clamp(Math.abs(scaleDelta) * 18, 0.04, 0.28);
-              if (scaleDelta > 0) {
-                controls.dollyIn(zoomScale);
+              if (usePlyRenderer && controls) {
+                const zoomScale = 1 + clamp(Math.abs(scaleDelta) * 18, 0.04, 0.28);
+                if (scaleDelta > 0) {
+                  controls.dollyIn(zoomScale);
+                } else {
+                  controls.dollyOut(zoomScale);
+                }
+                controls.update();
               } else {
-                controls.dollyOut(zoomScale);
+                const zoomDelta = clamp(scaleDelta * 12, -0.48, 0.48);
+                sendSplatGesture(
+                  splatWindow,
+                  {
+                    type: 'splat-hand-control',
+                    action: 'zoom',
+                    delta: zoomDelta,
+                  },
+                );
               }
-              controls.update();
             }
             updateHandStatus(
               'tracking',
@@ -488,9 +535,23 @@ export default function SplatViewer({
               Math.abs(deltaX) > ORBIT_DEADZONE ||
               Math.abs(deltaY) > ORBIT_DEADZONE
             ) {
-              controls.rotateLeft(clamp(deltaX * Math.PI * 2.4, -0.18, 0.18));
-              controls.rotateUp(clamp(deltaY * Math.PI * 2.1, -0.16, 0.16));
-              controls.update();
+              const orbitX = clamp(deltaX * Math.PI * 2.4, -0.18, 0.18);
+              const orbitY = clamp(deltaY * Math.PI * 2.1, -0.16, 0.16);
+              if (usePlyRenderer && controls) {
+                controls.rotateLeft(orbitX);
+                controls.rotateUp(orbitY);
+                controls.update();
+              } else {
+                sendSplatGesture(
+                  splatWindow,
+                  {
+                    type: 'splat-hand-control',
+                    action: 'orbit',
+                    dx: orbitX * 1.8,
+                    dy: orbitY * 1.8,
+                  },
+                );
+              }
             }
             updateHandStatus(
               'tracking',
@@ -551,23 +612,13 @@ export default function SplatViewer({
     };
   }, [handControlEnabled, usePlyRenderer, viewerState]);
 
-  if (!usePlyRenderer) {
-    return (
-      <iframe
-        src={splatIframeSrc}
-        className="splat-wrap"
-        style={{ border: 'none', width: '100%', height: '100%', display: 'block' }}
-        title="3D Gaussian Splat Viewer"
-      />
-    );
-  }
-
   return (
     <div
       className="splat-wrap"
-      aria-label="3D PLY viewer"
+      aria-label={usePlyRenderer ? '3D PLY viewer' : '3D Gaussian Splat Viewer'}
       style={{ background: '#020a12' }}
     >
+      {usePlyRenderer ? (
         <div
           ref={canvasHostRef}
           style={{
@@ -575,6 +626,14 @@ export default function SplatViewer({
             inset: 0,
           }}
         />
+      ) : (
+        <iframe
+          ref={iframeRef}
+          src={splatIframeSrc}
+          style={{ border: 'none', width: '100%', height: '100%', display: 'block' }}
+          title="3D Gaussian Splat Viewer"
+        />
+      )}
       <div
         style={{
           position: 'absolute',

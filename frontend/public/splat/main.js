@@ -737,7 +737,7 @@ let defaultViewMatrix = [
 ];
 let viewMatrix = defaultViewMatrix;
 async function main() {
-    let carousel = true;
+    let carousel = false;
     const params = new URLSearchParams(location.search);
     try {
         viewMatrix = JSON.parse(decodeURIComponent(location.hash.slice(1)));
@@ -883,6 +883,41 @@ async function main() {
 
     window.addEventListener("resize", resize);
     resize();
+
+    const applyOrbitGesture = (dx, dy) => {
+        carousel = false;
+        let inv = invert4(viewMatrix);
+        let d = 4;
+        inv = translate4(inv, 0, 0, d);
+        inv = rotate4(inv, dx, 0, 1, 0);
+        inv = rotate4(inv, -dy, 1, 0, 0);
+        inv = translate4(inv, 0, 0, -d);
+        viewMatrix = invert4(inv);
+    };
+
+    const applyZoomGesture = (delta) => {
+        carousel = false;
+        let inv = invert4(viewMatrix);
+        inv = translate4(inv, 0, 0, delta);
+        viewMatrix = invert4(inv);
+    };
+
+    window.__splatHandControl = {
+        orbit: applyOrbitGesture,
+        zoom: applyZoomGesture,
+    };
+
+    window.addEventListener("message", (event) => {
+        if (event.origin !== window.location.origin) return;
+        const data = event.data;
+        if (!data || data.type !== "splat-hand-control") return;
+
+        if (data.action === "orbit") {
+            applyOrbitGesture(data.dx || 0, data.dy || 0);
+        } else if (data.action === "zoom") {
+            applyZoomGesture(data.delta || 0);
+        }
+    });
 
     worker.onmessage = (e) => {
         if (e.data.buffer) {
