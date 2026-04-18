@@ -97,6 +97,26 @@ export default function SplatViewer({
   );
 
   useEffect(() => {
+    if (usePlyRenderer) return;
+    const MOVE_KEYS = new Set(['KeyW','KeyS','KeyA','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyQ','KeyE','Space']);
+    const forward = (e: KeyboardEvent) => {
+      if (!MOVE_KEYS.has(e.code)) return;
+      e.preventDefault();
+      iframeRef.current?.contentWindow?.postMessage({ type: 'splat-keydown', code: e.code }, '*');
+    };
+    const release = (e: KeyboardEvent) => {
+      if (!MOVE_KEYS.has(e.code)) return;
+      iframeRef.current?.contentWindow?.postMessage({ type: 'splat-keyup', code: e.code }, '*');
+    };
+    window.addEventListener('keydown', forward);
+    window.addEventListener('keyup', release);
+    return () => {
+      window.removeEventListener('keydown', forward);
+      window.removeEventListener('keyup', release);
+    };
+  }, [usePlyRenderer]);
+
+  useEffect(() => {
     if (!usePlyRenderer) return;
 
     const canvasHost = canvasHostRef.current;
