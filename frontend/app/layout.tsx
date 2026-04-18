@@ -21,8 +21,8 @@ const dmMono = DM_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Sojs — Sea Level Rise Simulation",
-  description: "Sojs: 3D visualization of projected sea level rise scenarios",
+  title: "Sojs — Location Dashboard",
+  description: "Sojs location dashboard for opening saved 3D renders by route",
 };
 
 export default function RootLayout({
