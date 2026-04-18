@@ -1,57 +1,54 @@
-'use client';
+import Link from 'next/link';
 
-import SplatViewer from '@/components/SplatViewer';
-
-const SCENE = {
-  year: 2025,
-  rise: 0,
-  label: 'Current',
-  color: '#00d4b4',
-};
+import { LOCATIONS } from '@/lib/locations';
 
 export default function Home() {
-  const scene = SCENE;
-
   return (
-    <div className="app">
-      {/* Header */}
-      <header className="app-header">
-        <div className="logo">
-          SO<span className="logo-accent">JS</span>
+    <div className="dashboard-shell">
+      <header className="masthead">
+        <div>
+          <div className="eyebrow">Sojs</div>
+          <h1 className="dashboard-title">Location Dashboard</h1>
         </div>
-        <div className="header-sub">Sea Level Rise Simulation</div>
-        <nav className="header-nav">
-          <button className="nav-btn active">3D VIEW</button>
-          <button className="nav-btn">DATA</button>
-          <button className="nav-btn">ABOUT</button>
-        </nav>
+        <p className="dashboard-copy">
+          Save each render as its own location and open it from a dedicated route.
+        </p>
       </header>
 
-        {/* Viewport: centered stage (not full-bleed) = fewer pixels, smoother perf */}
-      <div className="viewport">
-        <div className="splat-stage">
-          <SplatViewer splatUrl="/output.ply" renderer="splat" />
-        </div>
+      <section className="dashboard-grid" aria-label="Saved locations">
+        {LOCATIONS.map((location) => (
+          <Link
+            key={location.slug}
+            href={`/locations/${location.slug}`}
+            className="location-card"
+          >
+            <div className="location-card-topline">
+              <span className="location-status">{location.status}</span>
+              <span className="location-updated">{location.updatedAt}</span>
+            </div>
 
-        {/* Stats */}
-        <div className="stats-panel">
-          <div className="stats-label">Sea Level Rise</div>
-          <div className="stats-rise" style={{ color: scene.color }}>
-            +{scene.rise.toFixed(2)}
-            <span className="stats-rise-unit">m</span>
-          </div>
-          <div className="stats-year">{scene.year}</div>
-          <div className="stats-scenario">{scene.label}</div>
-        </div>
+            <div className="location-card-body">
+              <div>
+                <h2 className="location-name">{location.name}</h2>
+                <p className="location-region">{location.region}</p>
+              </div>
+              <p className="location-description">{location.description}</p>
+            </div>
 
-        {/* Attribution */}
-        <div className="attr-panel">
-          <div className="attr-title">Data Sources</div>
-          {['NASA Ice Cap Metrics', 'Gulf of Mexico Spray Data', 'NOAA Heat Index'].map(s => (
-            <div key={s} className="attr-item">{s}</div>
-          ))}
-        </div>
-      </div>
+            <div className="location-card-footer">
+              <div className="location-metric">
+                <span className="metric-label">Rise</span>
+                <strong>{location.scene.rise.toFixed(2)}m</strong>
+              </div>
+              <div className="location-metric">
+                <span className="metric-label">Scenario</span>
+                <strong>{location.scene.label}</strong>
+              </div>
+              <div className="location-open">Open Render</div>
+            </div>
+          </Link>
+        ))}
+      </section>
     </div>
   );
 }
