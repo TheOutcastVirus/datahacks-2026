@@ -902,9 +902,34 @@ async function main() {
         viewMatrix = invert4(inv);
     };
 
+    const applyPanGesture = (dx, dy) => {
+        carousel = false;
+        let inv = invert4(viewMatrix);
+        inv = translate4(inv, dx, -dy, 0);
+        viewMatrix = invert4(inv);
+    };
+
+    const applyRollGesture = (delta) => {
+        carousel = false;
+        let inv = invert4(viewMatrix);
+        inv = rotate4(inv, delta, 0, 0, 1);
+        viewMatrix = invert4(inv);
+    };
+
+    const applyResetGesture = () => {
+        carousel = false;
+        currentCameraIndex = 0;
+        camera = cameras[currentCameraIndex];
+        viewMatrix = defaultViewMatrix;
+        camid.innerText = "cam  " + currentCameraIndex;
+    };
+
     window.__splatHandControl = {
         orbit: applyOrbitGesture,
         zoom: applyZoomGesture,
+        pan: applyPanGesture,
+        roll: applyRollGesture,
+        reset: applyResetGesture,
     };
 
     window.addEventListener("message", (event) => {
@@ -925,6 +950,12 @@ async function main() {
             applyOrbitGesture(data.dx || 0, data.dy || 0);
         } else if (data.action === "zoom") {
             applyZoomGesture(data.delta || 0);
+        } else if (data.action === "pan") {
+            applyPanGesture(data.dx || 0, data.dy || 0);
+        } else if (data.action === "roll") {
+            applyRollGesture(data.delta || 0);
+        } else if (data.action === "reset") {
+            applyResetGesture();
         }
     });
 
