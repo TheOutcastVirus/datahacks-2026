@@ -2,6 +2,8 @@
 3dgs_compressed.ply
 .ply
 Cabbage-mvs_1012_04.ply
+output.ply
+frontend/public/output.ply
 # Environment and secrets
 .env
 .env.*

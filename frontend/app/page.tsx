@@ -27,10 +27,10 @@ export default function Home() {
         </nav>
       </header>
 
-      {/* Viewport: centered stage (not full-bleed) = fewer pixels, smoother perf */}
+        {/* Viewport: centered stage (not full-bleed) = fewer pixels, smoother perf */}
       <div className="viewport">
         <div className="splat-stage">
-          <SplatViewer splatUrl="/Cabbage-mvs_1012_04.ply" />
+          <SplatViewer splatUrl="/output.ply" renderer="splat" />
         </div>
 
         {/* Stats */}
