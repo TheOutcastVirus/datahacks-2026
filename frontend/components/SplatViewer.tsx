@@ -20,6 +20,20 @@ type GestureState = {
   smoothedHandScale: number | null;
   pinchZoomActive: boolean;
 };
+type FloodCalibration = {
+  startY: number;
+  endY: number;
+};
+type FloodShader = {
+  uniforms: {
+    uFloodLevelY: { value: number };
+    uFloodBandWidth: { value: number };
+    uFloodEdgeSoftness: { value: number };
+    uFloodTintStrength: { value: number };
+    uFloodColor: { value: import('three').Color };
+    uTime: { value: number };
+  };
+};
 
 const HAND_LANDMARKER_MODEL_URL =
   'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
@@ -31,9 +45,32 @@ const ORBIT_DEADZONE = 0.003;
 const SCALE_ZOOM_DEADZONE = 0.0025;
 const PINCH_ENTER_THRESHOLD = 0.11;
 const PINCH_EXIT_THRESHOLD = 0.18;
+const FLOOD_CALIBRATION_BY_URL: Record<string, FloodCalibration> = {
+  '/Cabbage-mvs_1012_04.ply': {
+    startY: 0.1356126070022583,
+    endY: 0.4573782980442047,
+  },
+};
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function lerp(start: number, end: number, amount: number) {
+  return start + (end - start) * amount;
+}
+
+function resolveFloodCalibration(
+  splatUrl: string,
+  boundingBox: import('three').Box3 | null | undefined,
+): FloodCalibration {
+  const calibrated = FLOOD_CALIBRATION_BY_URL[splatUrl];
+  if (calibrated) return calibrated;
+
+  return {
+    startY: boundingBox?.min.y ?? 0,
+    endY: boundingBox?.max.y ?? 1,
+  };
 }
 
 function sendSplatGesture(
@@ -64,15 +101,20 @@ function sendSplatGesture(
 export default function SplatViewer({
   splatUrl,
   renderer = 'auto',
+  floodProgress = 0,
 }: {
   splatUrl: string;
   renderer?: 'auto' | 'ply' | 'splat';
+  floodProgress?: number;
 }) {
   const canvasHostRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoOverlayRef = useRef<HTMLCanvasElement>(null);
   const controlsRef = useRef<OrbitControlsType | null>(null);
+  const floodShaderRef = useRef<FloodShader | null>(null);
+  const floodCalibrationRef = useRef<FloodCalibration | null>(null);
+  const floodProgressRef = useRef(clamp(floodProgress, 0, 1));
   const gestureStateRef = useRef<GestureState>({
     smoothedCenter: null,
     smoothedPinch: null,
@@ -83,6 +125,7 @@ export default function SplatViewer({
   const handStatusDetailRef = useRef<string>('Hand control off');
   const isPlyAsset = splatUrl.toLowerCase().endsWith('.ply');
   const usePlyRenderer = renderer === 'ply' || (renderer === 'auto' && isPlyAsset);
+  const clampedFloodProgress = clamp(floodProgress, 0, 1);
   const [viewerState, setViewerState] = useState<ViewerState>(
     usePlyRenderer ? 'loading' : 'ready',
   );
@@ -97,10 +140,27 @@ export default function SplatViewer({
   );
 
   useEffect(() => {
+    floodProgressRef.current = clampedFloodProgress;
+
+    const floodShader = floodShaderRef.current;
+    const floodCalibration = floodCalibrationRef.current;
+    if (!floodShader || !floodCalibration) return;
+
+    floodShader.uniforms.uFloodLevelY.value = lerp(
+      floodCalibration.startY,
+      floodCalibration.endY,
+      clampedFloodProgress,
+    );
+  }, [clampedFloodProgress]);
+
+  useEffect(() => {
     if (!usePlyRenderer) return;
 
     const canvasHost = canvasHostRef.current;
     if (!canvasHost) return;
+
+    floodShaderRef.current = null;
+    floodCalibrationRef.current = null;
 
     let isDisposed = false;
     let animationFrameId = 0;
@@ -163,6 +223,16 @@ export default function SplatViewer({
         loadedGeometry.computeBoundingBox();
         loadedGeometry.computeBoundingSphere();
         geometryToDispose = loadedGeometry;
+        const floodCalibration = resolveFloodCalibration(
+          splatUrl,
+          loadedGeometry.boundingBox,
+        );
+        floodCalibrationRef.current = floodCalibration;
+        const initialFloodLevelY = lerp(
+          floodCalibration.startY,
+          floodCalibration.endY,
+          floodProgressRef.current,
+        );
 
         const boundingSphere =
           loadedGeometry.boundingSphere ?? new THREE.Sphere(new THREE.Vector3(), 1);
@@ -181,6 +251,58 @@ export default function SplatViewer({
           vertexColors: hasVertexColors,
           ...(hasVertexColors ? {} : { color: '#d7e3f4' }),
         });
+        pointsMaterial.onBeforeCompile = shader => {
+          shader.uniforms.uFloodLevelY = { value: initialFloodLevelY };
+          shader.uniforms.uFloodBandWidth = { value: 0.018 };
+          shader.uniforms.uFloodEdgeSoftness = { value: 0.012 };
+          shader.uniforms.uFloodTintStrength = { value: 0.58 };
+          shader.uniforms.uFloodColor = { value: new THREE.Color('#167d96') };
+          shader.uniforms.uTime = { value: performance.now() / 1000 };
+
+          shader.vertexShader = `
+            varying float vPointY;
+          ${shader.vertexShader}`.replace(
+            '#include <begin_vertex>',
+            `#include <begin_vertex>
+            vPointY = position.y;`,
+          );
+
+          shader.fragmentShader = `
+            uniform float uFloodLevelY;
+            uniform float uFloodBandWidth;
+            uniform float uFloodEdgeSoftness;
+            uniform float uFloodTintStrength;
+            uniform vec3 uFloodColor;
+            uniform float uTime;
+            varying float vPointY;
+          ${shader.fragmentShader}`.replace(
+            '#include <color_fragment>',
+            `#include <color_fragment>
+            float submerged = smoothstep(
+              uFloodLevelY + uFloodEdgeSoftness,
+              uFloodLevelY - uFloodEdgeSoftness,
+              vPointY
+            );
+
+            float band = 1.0 - smoothstep(
+              0.0,
+              uFloodBandWidth,
+              abs(vPointY - uFloodLevelY)
+            );
+
+            float pulse = 0.88 + 0.12 * sin(uTime * 1.6 + vPointY * 24.0);
+
+            diffuseColor.rgb = mix(
+              diffuseColor.rgb,
+              uFloodColor,
+              submerged * uFloodTintStrength
+            );
+            diffuseColor.rgb += band * pulse * vec3(0.05, 0.10, 0.13);`,
+          );
+
+          floodShaderRef.current = shader as unknown as FloodShader;
+        };
+        pointsMaterial.customProgramCacheKey = () => 'ply-flood-v1';
         materialToDispose = pointsMaterial;
 
         const points = new THREE.Points(loadedGeometry, pointsMaterial);
@@ -229,6 +351,17 @@ export default function SplatViewer({
         const animate = () => {
           if (isDisposed || !renderer) return;
 
+          const floodShader = floodShaderRef.current;
+          const activeFloodCalibration = floodCalibrationRef.current;
+          if (floodShader && activeFloodCalibration) {
+            floodShader.uniforms.uTime.value = performance.now() / 1000;
+            floodShader.uniforms.uFloodLevelY.value = lerp(
+              activeFloodCalibration.startY,
+              activeFloodCalibration.endY,
+              floodProgressRef.current,
+            );
+          }
+
           if (controls && keysDown.size > 0) {
             const speed = radius * 0.014;
             const forward = camera.getWorldDirection(new THREE.Vector3());
@@ -275,6 +408,8 @@ export default function SplatViewer({
       if (onKeyUp) window.removeEventListener('keyup', onKeyUp);
       controls?.dispose();
       controlsRef.current = null;
+      floodShaderRef.current = null;
+      floodCalibrationRef.current = null;
       geometryToDispose?.dispose();
       materialToDispose?.dispose();
       renderer?.dispose();
