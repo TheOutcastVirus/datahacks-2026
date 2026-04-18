@@ -1,6 +1,5 @@
 # Sojs
-
-Sojs is a sea-level rise modeling and visualization project. The goal is to pair a prediction model trained on climate/ocean datasets with a 3D world view so you can scrub through time and see projected flooding.
+SOJS CODER
 
 ## Repo layout
 
