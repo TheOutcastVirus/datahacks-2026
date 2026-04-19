@@ -659,8 +659,25 @@ async function main() {
     let sampledTrajectoryIndices;
     if (isAnnaberg) {
         const mod = await import("./annaberg-pose-data.js");
-        cameras = mod.annabergCameras;
-        trajectoryPoints = mod.annabergTrajectoryPoints;
+        // Pose data is in raw COLMAP space; apply the same gsplat normalize_world_space
+        // transform the extraction script defines: pos_norm = scale * (pos - center)
+        const annCenter = [-0.00619141, -0.03893983, -0.01132717];
+        const annScale = 0.3011857514680327;
+        // COLMAP aerial convention: Z points down (ground = large +Z, cameras = small +Z).
+        // Negate Z so cameras are above the scene in viewer space (Z-up).
+        const normPos = (p) => [
+            annScale * (p[0] - annCenter[0]),
+            annScale * (p[1] - annCenter[1]),
+            -annScale * (p[2] - annCenter[2]),
+        ];
+        // Negate Z column of rotation so forward direction flips with the world Z.
+        const normRot = (r) => r.map(row => [row[0], row[1], -row[2]]);
+        cameras = mod.annabergCameras.map(cam => ({
+            ...cam,
+            position: normPos(cam.position),
+            rotation: normRot(cam.rotation),
+        }));
+        trajectoryPoints = mod.annabergTrajectoryPoints.map(normPos);
         sampledTrajectoryIndices = mod.sampledTrajectoryIndices;
     } else {
         const mod = await import("./maine-pose-data.js");
@@ -897,13 +914,16 @@ async function main() {
         viewMatrix = invert4(inv);
     };
 
+    const defaultXyzOffset = isAnnaberg ? [0, 0, 8] : [0, 0, 0];
+    xyzOffset = defaultXyzOffset.slice();
+
     const applyResetGesture = () => {
         carousel = false;
         currentCameraIndex = resetCameraIndex;
         trajectoryT = resetTrajectoryT;
         camera = resetCamera;
         viewMatrix = resetViewMatrix.slice();
-        xyzOffset = [0, 0, 0];
+        xyzOffset = defaultXyzOffset.slice();
         zoomOffset = 0;
         resize();
         camid.innerText = "cam  " + currentCameraIndex;
@@ -1434,7 +1454,7 @@ async function main() {
 
         if (vertexCount > 0) {
             document.getElementById("spinner").style.display = "none";
-            const baselineZ = isAnnaberg ? sceneYMin : sceneYMin + 1.47;
+            const baselineZ = isAnnaberg ? sceneYMin + 2.0 : sceneYMin + 1.47;
             const waterY = baselineZ + waterLevelProgress * (sceneYMax - baselineZ);
             const waterVisible = waterLevelProgress > 0 || !isAnnaberg;
             gl.uniform1f(u_waterLevel, waterVisible ? waterY : -1e9);
