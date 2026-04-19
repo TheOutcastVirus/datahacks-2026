@@ -636,8 +636,8 @@ void main () {
 
 `.trim();
 
-let defaultViewMatrix = getViewMatrix(cameras[0]);
-let viewMatrix = defaultViewMatrix.slice();
+    let defaultViewMatrix = getViewMatrix(cameras[0]);
+    let viewMatrix = defaultViewMatrix.slice();
 async function main() {
     let carousel = false;
     const params = new URLSearchParams(location.search);
@@ -645,6 +645,12 @@ async function main() {
         viewMatrix = JSON.parse(decodeURIComponent(location.hash.slice(1)));
         carousel = false;
     } catch (err) {}
+
+    // Capture the true page-load defaults so reset always returns here
+    const resetViewMatrix = viewMatrix.slice();
+    const resetCamera = cameras[0];
+    const resetTrajectoryT = trajArcLengths[sampledTrajectoryIndices[0]];
+    const resetCameraIndex = 0;
     const url = new URL(
         // "nike.splat",
         // location.href,
@@ -814,11 +820,13 @@ async function main() {
 
     const applyResetGesture = () => {
         carousel = false;
-        currentCameraIndex = 0;
-        trajectoryT = trajArcLengths[sampledTrajectoryIndices[currentCameraIndex]];
-        camera = cameras[currentCameraIndex];
-        defaultViewMatrix = getViewMatrix(camera);
-        viewMatrix = defaultViewMatrix.slice();
+        currentCameraIndex = resetCameraIndex;
+        trajectoryT = resetTrajectoryT;
+        camera = resetCamera;
+        viewMatrix = resetViewMatrix.slice();
+        xyzOffset = [0, 0, 0];
+        zoomOffset = 0;
+        resize();
         camid.innerText = "cam  " + currentCameraIndex;
     };
 
@@ -1169,14 +1177,14 @@ async function main() {
             activeKeys.includes("ShiftLeft") ||
             activeKeys.includes("ShiftRight");
 
-        // Arrow left/right traverse the trajectory; all other translation disabled
+        // Arrow left/right traverse the trajectory (only when Shift is not held)
         const TRAJ_STEP = 0.008;
-        if (activeKeys.includes("ArrowLeft")) {
+        if (activeKeys.includes("ArrowLeft") && !shiftKey) {
             trajectoryT = Math.max(0, trajectoryT - TRAJ_STEP);
             setPositionFromTrajectory(inv);
             carousel = false;
         }
-        if (activeKeys.includes("ArrowRight")) {
+        if (activeKeys.includes("ArrowRight") && !shiftKey) {
             trajectoryT = Math.min(trajTotalLength, trajectoryT + TRAJ_STEP);
             setPositionFromTrajectory(inv);
             carousel = false;
