@@ -1,11 +1,10 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import type { ChangeEvent, MouseEventHandler } from 'react';
 
-import type { LocationRecord, ScenarioRecord } from '@/lib/locations';
-import {
-  parseVoiceIntent,
-} from '@/lib/scene-command-catalog';
+import type { LocationRecord, ScenarioRecord, SceneHotspot } from '@/lib/locations';
+import { parseVoiceIntent } from '@/lib/scene-command-catalog';
 import {
   buildCompareResponse,
   buildCurrentViewResponse,
@@ -17,9 +16,12 @@ import {
   buildUnknownResponse,
 } from '@/lib/voice-responses';
 import type { ViewerCommandApi, ViewerState } from '@/lib/viewer-types';
+import type { VoiceAgentAction, VoiceAgentTrace } from '@/lib/voice-agent/types';
 
 import VoiceAssistantBar from '@/components/VoiceAssistantBar';
+import VoiceCaptionPanel from '@/components/VoiceCaptionPanel';
 import SplatViewer from '@/components/SplatViewer';
+import LocationResearchPanel from '@/components/LocationResearchPanel';
 import SeaLevelTimeline from '@/components/SeaLevelTimeline';
 import { useAssemblyAISpeechToText } from '@/hooks/useAssemblyAISpeechToText';
 import { useVoicePlayback } from '@/hooks/useVoicePlayback';
@@ -37,7 +39,7 @@ function clamp(value: number, min: number, max: number) {
 }
 
 export default function LocationExperience({ location }: { location: LocationRecord }) {
-  const fallbackHotspot = {
+  const fallbackHotspot: SceneHotspot = {
     id: 'overview',
     name: location.name,
     aliases: [location.name.toLowerCase(), 'overview', 'scene'],
@@ -48,7 +50,7 @@ export default function LocationExperience({ location }: { location: LocationRec
     },
     explainText: `Showing ${location.name}. ${location.description}`,
   };
-  const fallbackScenario = {
+  const fallbackScenario: ScenarioRecord = {
     id: 'baseline',
     label: location.scene.label,
     year: location.scene.year,
@@ -66,20 +68,19 @@ export default function LocationExperience({ location }: { location: LocationRec
   };
   const viewerRef = useRef<ViewerCommandApi | null>(null);
   const [viewerState, setViewerState] = useState<ViewerState>('loading');
-  const [speakerEnabled, setSpeakerEnabled] = useState(true);
-  const [, setCommandLabel] = useState('Ready');
-  const [, setResponse] = useState(
-    'Use your voice to move around the scene, switch scenarios, and ask what the model is showing.',
+  const [commandLabel, setCommandLabel] = useState('Ready');
+  const [response, setResponse] = useState(
+    'Click the voice button to unmute, say your command or question, then click again to mute. We will process it and respond here.',
   );
+  const [aiError, setAiError] = useState<string | null>(null);
   const [activeHotspotId, setActiveHotspotId] = useState(normalizedLocation.defaultHotspotId);
   const [activeScenarioId, setActiveScenarioId] = useState(normalizedLocation.scenarios[0].id);
   const [compareScenarioIds, setCompareScenarioIds] = useState<
     [string, string] | null
   >(null);
   const [sliderYear, setSliderYear] = useState(2026);
-  const [riseMeters, setRiseMeters] = useState(normalizedLocation.scene.rise);
   const [timelineVisible, setTimelineVisible] = useState(true);
-  const [voiceVisible, setVoiceVisible] = useState(false);
+  const [riseMeters, setRiseMeters] = useState(normalizedLocation.scene.rise);
   const speech = useAssemblyAISpeechToText([
     'show 2050',
     'show baseline',
@@ -92,7 +93,21 @@ export default function LocationExperience({ location }: { location: LocationRec
     'what data is this based on',
     ...hotspots.flatMap((hotspot) => [hotspot.name, ...hotspot.aliases]),
   ]);
-  const { isPlaying: isVoicePlaying, speak } = useVoicePlayback();
+  const appendVoiceLog = (
+    message: string,
+    level: 'info' | 'error' = 'info',
+  ) => {
+    if (level === 'error') {
+      console.warn(`[voice] ${message}`);
+    } else {
+      console.log(`[voice] ${message}`);
+    }
+  };
+  const { speak, error: voicePlaybackError } = useVoicePlayback((event) => {
+    appendVoiceLog(event.message, event.level ?? 'info');
+  });
+  const stopInFlightRef = useRef(false);
+  const micStartInFlightRef = useRef(false);
 
   const activeHotspot =
     hotspots.find((hotspot) => hotspot.id === activeHotspotId) ?? hotspots[0];
@@ -100,12 +115,130 @@ export default function LocationExperience({ location }: { location: LocationRec
     scenarios.find((scenario) => scenario.id === activeScenarioId) ?? scenarios[0];
 
   const speakIfEnabled = async (text: string) => {
-    if (!speakerEnabled) return;
+    appendVoiceLog(`Preparing spoken response: "${text.slice(0, 90)}${text.length > 90 ? '…' : ''}"`);
     await speak(text);
   };
 
-  const runVoiceCommand = async (rawTranscript: string) => {
+  const applyVoiceActions = async (actions: VoiceAgentAction[]) => {
+    for (const action of actions) {
+      switch (action.type) {
+        case 'go_to_hotspot': {
+          const hotspot =
+            hotspots.find((item) => item.id === action.hotspotId) ?? activeHotspot;
+          await viewerRef.current?.goToHotspot(action.hotspotId);
+          setActiveHotspotId(hotspot.id);
+          break;
+        }
+        case 'set_scenario': {
+          const scenario =
+            scenarios.find((item) => item.id === action.scenarioId) ?? activeScenario;
+          viewerRef.current?.setScenario(scenario.id);
+          setCompareScenarioIds(null);
+          setActiveScenarioId(scenario.id);
+          setSliderYear(scenario.year);
+          setRiseMeters(scenario.riseMeters);
+          break;
+        }
+        case 'compare_scenarios': {
+          const left =
+            scenarios.find((item) => item.id === action.leftScenarioId) ?? scenarios[0];
+          const right =
+            scenarios.find((item) => item.id === action.rightScenarioId) ??
+            scenarios[scenarios.length - 1];
+          viewerRef.current?.compareScenario(left.id, right.id);
+          setCompareScenarioIds([left.id, right.id]);
+          setActiveScenarioId(right.id);
+          setSliderYear(right.year);
+          setRiseMeters(right.riseMeters);
+          break;
+        }
+        case 'move_camera':
+          viewerRef.current?.moveCamera(action.direction);
+          break;
+        case 'zoom_camera':
+          viewerRef.current?.zoomCamera(action.direction);
+          break;
+        case 'reset_camera':
+          viewerRef.current?.resetCamera();
+          setActiveHotspotId(normalizedLocation.defaultHotspotId);
+          break;
+      }
+    }
+  };
+
+  const getHarnessResponse = async (
+    transcript: string,
+  ): Promise<{
+    speech: string | null;
+    caption: string | null;
+    actions: VoiceAgentAction[];
+    traces: VoiceAgentTrace | null;
+    error: string | null;
+  }> => {
+    try {
+      appendVoiceLog(`Sending transcript to voice harness: "${transcript}"`);
+      const res = await fetch('/api/voice/respond', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transcript,
+          locationSlug: normalizedLocation.slug,
+          sceneState: {
+            activeHotspotId,
+            activeScenarioId,
+            compareScenarioIds,
+            riseMeters,
+            viewerState,
+          },
+        }),
+      });
+      const data = (await res.json().catch(() => null)) as
+        | {
+            speech?: string;
+            caption?: string;
+            actions?: VoiceAgentAction[];
+            traces?: VoiceAgentTrace;
+            error?: string;
+          }
+        | null;
+      if (!res.ok) {
+        const errorMessage = data?.error ?? 'Voice harness request failed.';
+        appendVoiceLog(`Voice harness error: ${errorMessage}`, 'error');
+        return { speech: null, caption: null, actions: [], traces: null, error: errorMessage };
+      }
+
+      if (data?.speech || data?.caption) {
+        appendVoiceLog(
+          `Voice harness returned ${data?.actions?.length ?? 0} action(s).`,
+        );
+      } else {
+        appendVoiceLog('Voice harness returned an empty reply.', 'error');
+      }
+      return {
+        speech: data?.speech ?? null,
+        caption: data?.caption ?? null,
+        actions: data?.actions ?? [],
+        traces: data?.traces ?? null,
+        error: null,
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Voice harness request failed.';
+      appendVoiceLog(`Voice harness request threw: ${errorMessage}`, 'error');
+      return {
+        speech: null,
+        caption: null,
+        actions: [],
+        traces: null,
+        error: errorMessage,
+      };
+    }
+  };
+
+  const runFallbackVoiceCommand = async (rawTranscript: string) => {
+    appendVoiceLog(`Falling back to deterministic parser for: "${rawTranscript}"`);
     const intent = parseVoiceIntent(normalizedLocation, rawTranscript);
+    appendVoiceLog(`Parsed fallback intent: ${intent.type}`);
     setCommandLabel(describeIntent(intent.type));
 
     if (
@@ -113,6 +246,7 @@ export default function LocationExperience({ location }: { location: LocationRec
       ['go_to_hotspot', 'camera_move', 'camera_zoom', 'reset_camera'].includes(intent.type)
     ) {
       const loadingCopy = 'The scene is still loading. Try that command again in a moment.';
+      appendVoiceLog('Viewer is still loading; fallback command execution deferred.', 'error');
       setResponse(loadingCopy);
       await speakIfEnabled(loadingCopy);
       return;
@@ -231,20 +365,81 @@ export default function LocationExperience({ location }: { location: LocationRec
     }
   };
 
-  const handleMicClick = async () => {
+  const runVoiceCommand = async (rawTranscript: string) => {
+    setAiError(null);
+    appendVoiceLog(`Mic release produced transcript: "${rawTranscript}"`);
+    const { speech, caption, actions, traces, error } = await getHarnessResponse(rawTranscript);
+    if (!speech || !caption) {
+      setAiError(error);
+      await runFallbackVoiceCommand(rawTranscript);
+      return;
+    }
+
+    setCommandLabel(
+      actions[0]?.type ? describeIntent(actions[0].type) : traces?.toolCalls[0]?.toolName
+        ? describeIntent(traces.toolCalls[0].toolName)
+        : 'Voice Agent',
+    );
+    await applyVoiceActions(actions);
+    setResponse(caption);
+    await speakIfEnabled(speech);
+  };
+
+  const stopMicRecording = async () => {
+    if (stopInFlightRef.current) {
+      return;
+    }
+
+    if (
+      speech.state !== 'recording' &&
+      speech.state !== 'connecting' &&
+      speech.state !== 'stopping'
+    ) {
+      return;
+    }
+
+    stopInFlightRef.current = true;
+    try {
+      appendVoiceLog('Muted; finalizing transcript.');
+      const nextTranscript = await speech.stopRecording();
+      if (nextTranscript) {
+        await runVoiceCommand(nextTranscript);
+      } else {
+        appendVoiceLog('AssemblyAI returned no final transcript.', 'error');
+        setResponse(
+          'No speech was recognized. Unmute, speak clearly, then mute when you are finished.',
+        );
+      }
+    } finally {
+      stopInFlightRef.current = false;
+    }
+  };
+
+  const handleMicClick: MouseEventHandler<HTMLButtonElement> = async () => {
     if (
       speech.state === 'recording' ||
       speech.state === 'connecting' ||
       speech.state === 'stopping'
     ) {
-      const nextTranscript = await speech.stopRecording();
-      if (nextTranscript) {
-        await runVoiceCommand(nextTranscript);
-      }
+      await stopMicRecording();
       return;
     }
 
-    await speech.startRecording();
+    if (speech.state !== 'idle' && speech.state !== 'error') {
+      return;
+    }
+
+    if (micStartInFlightRef.current) {
+      return;
+    }
+
+    micStartInFlightRef.current = true;
+    try {
+      appendVoiceLog('Unmuted; streaming to AssemblyAI.');
+      await speech.startRecording();
+    } finally {
+      micStartInFlightRef.current = false;
+    }
   };
 
   const currentScenario: ScenarioRecord =
@@ -254,33 +449,100 @@ export default function LocationExperience({ location }: { location: LocationRec
       : activeScenario;
   const compareScenarios = compareScenarioIds
     ? compareScenarioIds
-        .map((id) => scenarios.find((scenario) => scenario.id === id))
+        .map((id: string) => scenarios.find((scenario) => scenario.id === id))
         .filter(Boolean) as ScenarioRecord[]
     : [];
+  const isOutputSplat = normalizedLocation.slug === 'output-splat';
   const scenarioLabel = compareScenarios.length
     ? `${compareScenarios[0].label} vs ${compareScenarios[1].label}`
     : currentScenario.label;
   const floodProgress = clamp(riseMeters / MAX_VISUALIZED_RISE_METERS, 0, 1);
+  const missingAssemblyConfig = speech.error?.includes('AssemblyAI_API_KEY') ?? false;
+  const outputSplatSummary =
+    normalizedLocation.description.trim() ||
+    activeHotspot.description ||
+    currentScenario.narration;
+  const voiceStatusLabel = missingAssemblyConfig
+    ? 'Set ASSEMBLYAI_API_KEY to enable voice input'
+    : speech.error
+      ? speech.error
+      : voicePlaybackError &&
+          speech.state !== 'recording' &&
+          speech.state !== 'connecting' &&
+          speech.state !== 'stopping'
+        ? `${voicePlaybackError} (Set ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID in frontend/.env.local.)`
+        : speech.state === 'connecting'
+          ? 'Unmuted — connecting…'
+          : speech.state === 'stopping'
+            ? 'Processing — hang on…'
+            : speech.state === 'recording'
+              ? 'Listening — click to mute when you are done'
+              : speech.audioSupport === 'unsupported'
+                ? 'Voice is not supported in this browser'
+                : 'Muted — click to unmute and speak';
 
-  return (
-    <>
-      <div className="viewport">
-        <div className="splat-stage">
-          <SplatViewer
-            ref={viewerRef}
-            floodProgress={floodProgress}
-            hotspots={hotspots}
-            onViewerStateChange={setViewerState}
-            splatUrl={normalizedLocation.splatUrl}
-            renderer={normalizedLocation.renderer ?? 'auto'}
+  const viewerStage = (
+    <div className={isOutputSplat ? 'splat-stage output-splat-stage' : 'splat-stage'}>
+      <SplatViewer
+        ref={viewerRef}
+        floodProgress={floodProgress}
+        floodCalibration={normalizedLocation.floodCalibration}
+        floodOverlay={normalizedLocation.floodOverlay}
+        hotspots={hotspots}
+        onViewerStateChange={setViewerState}
+        splatUrl={normalizedLocation.splatUrl}
+        renderer={normalizedLocation.renderer ?? 'auto'}
+      />
+    </div>
+  );
+
+  const statsPanel = (
+    <div className={isOutputSplat ? 'stats-panel output-splat-card' : 'stats-panel'}>
+      <div className="stats-label">Sea Level Rise</div>
+      <div className="stats-rise" style={{ color: currentScenario.color }}>
+        +{riseMeters.toFixed(2)}
+        <span className="stats-rise-unit">m</span>
+      </div>
+      <div className="stats-meta">
+        <span className="stats-year">{currentScenario.year}</span>
+        <span className="stats-meta-sep" aria-hidden={true}>
+          ·
+        </span>
+        <span className="stats-scenario">{scenarioLabel}</span>
+      </div>
+      <div className="stats-narration">{currentScenario.narration}</div>
+      <div className="stats-control">
+        <label className="stats-control-label" htmlFor="water-level-slider">
+          Water Level
+        </label>
+        <div className="stats-slider-row">
+          <input
+            id="water-level-slider"
+            className="stats-slider"
+            type="range"
+            min={0}
+            max={MAX_VISUALIZED_RISE_METERS}
+            step={0.01}
+            value={riseMeters}
+            onChange={(event: ChangeEvent<HTMLInputElement>) => {
+              setRiseMeters(Number.parseFloat(event.currentTarget.value));
+            }}
+            aria-label="Water level"
           />
+          <div className="stats-slider-value">{Math.round(floodProgress * 100)}%</div>
         </div>
-
+        <div className="stats-slider-scale">
+          <span>Dry</span>
+          <span>Flooded</span>
+        </div>
         {timelineVisible ? (
           <SeaLevelTimeline
             sliderYear={sliderYear}
             riseMeters={riseMeters}
-            onYearChange={(year, rise) => { setSliderYear(year); setRiseMeters(rise); }}
+            onYearChange={(year, rise) => {
+              setSliderYear(year);
+              setRiseMeters(rise);
+            }}
             onHide={() => setTimelineVisible(false)}
           />
         ) : (
@@ -289,42 +551,145 @@ export default function LocationExperience({ location }: { location: LocationRec
             className="panel-tab"
             style={{ position: 'absolute', bottom: 24, right: 16, zIndex: 30 }}
             onClick={() => setTimelineVisible(true)}
-          >Sea Level ▲</button>
+          >
+            Sea Level ▲
+          </button>
         )}
+      </div>
+    </div>
+  );
 
-        <div style={{ position: 'absolute', top: 16, right: 16, zIndex: 30 }}>
-          {voiceVisible ? (
-            <VoiceAssistantBar
-              isRecording={speech.state === 'recording'}
-              isSpeaking={isVoicePlaying}
-              isSupported={speech.isSupported}
-              isWorking={speech.state === 'connecting' || speech.state === 'stopping'}
-              onMicClick={handleMicClick}
-              onToggleSpeaker={() => setSpeakerEnabled((current) => !current)}
-              onHide={() => setVoiceVisible(false)}
-              speakerEnabled={speakerEnabled}
-              statusLabel={
-                speech.error
-                  ? speech.error
-                  : speech.state === 'connecting'
-                    ? 'Connecting to AssemblyAI…'
-                    : speech.state === 'stopping'
-                      ? 'Finalizing AssemblyAI transcript…'
-                      : speech.state === 'recording'
-                        ? 'Listening via AssemblyAI…'
-                        : speech.isSupported
-                          ? 'Tap the mic to start or stop recording'
-                          : 'Mic recording is not supported in this browser'
-              }
-              transcript={speech.transcript}
-            />
-          ) : (
-            <button type="button" className="panel-tab" onClick={() => setVoiceVisible(true)}>Voice ▼</button>
-          )}
+  const attrPanel = (
+    <div
+      className={
+        isOutputSplat
+          ? 'attr-panel attr-panel-splat-output output-splat-card'
+          : 'attr-panel'
+      }
+    >
+      <div className="attr-title">Location</div>
+      <div className="attr-item attr-item-strong">{normalizedLocation.name}</div>
+      {normalizedLocation.description.trim() ? (
+        <div className="attr-item">{normalizedLocation.description}</div>
+      ) : null}
+      {isOutputSplat ? (
+        <div className="attr-hotspot-inline">
+          <span className="attr-hotspot-label">View</span>
+          <span className="attr-item-strong">{activeHotspot.name}</span>
         </div>
+      ) : (
+        <>
+          <div className="attr-title attr-title-spaced">Active Hotspot</div>
+          <div className="attr-item attr-item-strong">{activeHotspot.name}</div>
+          <div className="attr-item">{activeHotspot.description}</div>
+        </>
+      )}
+      <div className="attr-title attr-title-spaced">Data Sources</div>
+      {normalizedLocation.sources.map((source) => (
+        <div key={source} className="attr-item">
+          {source}
+        </div>
+      ))}
+    </div>
+  );
 
+  const voiceAssistantBar = (
+    <VoiceAssistantBar
+      isCapturing={speech.state === 'recording'}
+      isLive={speech.state === 'recording' || speech.state === 'connecting'}
+      isProcessing={speech.state === 'stopping'}
+      isSupported={!missingAssemblyConfig && speech.audioSupport !== 'unsupported'}
+      isWorking={speech.state === 'connecting' || speech.state === 'stopping'}
+      onMicClick={handleMicClick}
+      liveTranscript={speech.transcript}
+      statusLabel={voiceStatusLabel}
+    />
+  );
 
+  const voiceCaptionPanel = (
+    <VoiceCaptionPanel
+      commandLabel={commandLabel}
+      response={response}
+      transcript={speech.transcript}
+      error={speech.error ?? voicePlaybackError ?? aiError}
+    />
+  );
 
+  return (
+    <>
+      <div className={isOutputSplat ? 'viewport viewport-output-splat' : 'viewport'}>
+        {isOutputSplat ? (
+          <div className="output-splat-layout">
+            <section className="output-splat-main">
+              <div className="output-splat-hero">
+                <div className="output-splat-kicker">Pipeline Output</div>
+                <div className="output-splat-hero-row">
+                  <div className="output-splat-hero-copy">
+                    <h1 className="output-splat-title">{normalizedLocation.name}</h1>
+                    <p className="output-splat-summary">{outputSplatSummary}</p>
+                  </div>
+                  <div className="output-splat-status-grid" aria-label="Output metadata">
+                    <div className="output-splat-status-card">
+                      <span className="output-splat-status-label">Status</span>
+                      <span className="output-splat-status-value">
+                        {normalizedLocation.status}
+                      </span>
+                    </div>
+                    <div className="output-splat-status-card">
+                      <span className="output-splat-status-label">Updated</span>
+                      <span className="output-splat-status-value">
+                        {normalizedLocation.updatedAt}
+                      </span>
+                    </div>
+                    <div className="output-splat-status-card">
+                      <span className="output-splat-status-label">Active view</span>
+                      <span className="output-splat-status-value">{activeHotspot.name}</span>
+                    </div>
+                    <div className="output-splat-status-card">
+                      <span className="output-splat-status-label">Scenario</span>
+                      <span className="output-splat-status-value">{scenarioLabel}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {viewerStage}
+            </section>
+
+            <aside className="output-splat-sidebar">
+              {statsPanel}
+              {attrPanel}
+              <div className="output-splat-voice-stack">
+                {voiceAssistantBar}
+                {voiceCaptionPanel}
+              </div>
+            </aside>
+          </div>
+        ) : (
+          <>
+            <div className="viewport-main-column">
+              <div className="viewport-theater-stack">
+                {viewerStage}
+                <div className="research-panel-kicker viewport-flow-kicker">
+                  Orthogonal Flow 02
+                </div>
+              </div>
+
+              <div className="viewport-below-window">
+                <LocationResearchPanel
+                  locationName={normalizedLocation.name}
+                  region={normalizedLocation.region}
+                  locationDescription={normalizedLocation.description}
+                  activeHotspot={activeHotspot.name}
+                  activeScenario={`${currentScenario.label} (${currentScenario.year})`}
+                />
+              </div>
+            </div>
+            {statsPanel}
+            {attrPanel}
+            {voiceAssistantBar}
+            {voiceCaptionPanel}
+          </>
+        )}
       </div>
     </>
   );

@@ -33,7 +33,9 @@ export default async function LocationPage({
           <Link href="/" className="nav-link">
             Dashboard
           </Link>
-          <div className="nav-chip">{location.region}</div>
+          {location.region.trim() ? (
+            <div className="nav-chip">{location.region}</div>
+          ) : null}
         </nav>
       </header>
 

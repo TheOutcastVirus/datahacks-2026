@@ -9,7 +9,7 @@ export async function GET() {
 
   if (!apiKey) {
     return NextResponse.json(
-      { error: 'Missing AssemblyAI configuration.' },
+      { error: 'Missing AssemblyAI_API_KEY configuration.' },
       { status: 503 },
     );
   }

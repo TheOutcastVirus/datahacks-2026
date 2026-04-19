@@ -18,6 +18,32 @@ export type ScenarioRecord = {
   color: string;
 };
 
+export type FloodCalibration = {
+  startY: number;
+  endY: number;
+  minX?: number;
+  maxX?: number;
+  minZ?: number;
+  maxZ?: number;
+};
+
+export type FloodOverlayPoint = {
+  x: number;
+  z: number;
+};
+
+export type FloodOverlayRegion = {
+  id: string;
+  label: string;
+  polygon: FloodOverlayPoint[];
+  minProgress?: number;
+  maxProgress?: number;
+};
+
+export type FloodOverlay = {
+  regions: FloodOverlayRegion[];
+};
+
 export type LocationRecord = {
   slug: string;
   name: string;
@@ -25,6 +51,8 @@ export type LocationRecord = {
   description: string;
   splatUrl: string;
   renderer?: 'auto' | 'ply' | 'splat';
+  floodCalibration?: FloodCalibration;
+  floodOverlay?: FloodOverlay;
   status: string;
   updatedAt: string;
   scene: {
@@ -48,6 +76,40 @@ export const LOCATIONS: LocationRecord[] = [
       'Baseline capture for the Seattle waterfront render. Use this route as the entry point for future location-specific scenes.',
     splatUrl: '/Cabbage-mvs_1012_04.ply',
     renderer: 'ply',
+    floodOverlay: {
+      regions: [
+        {
+          id: 'shoreline-band',
+          label: 'Shoreline band',
+          minProgress: 0.08,
+          maxProgress: 0.72,
+          polygon: [
+            { x: 0.08, z: 0.18 },
+            { x: 0.22, z: 0.12 },
+            { x: 0.58, z: 0.10 },
+            { x: 0.92, z: 0.15 },
+            { x: 0.95, z: 0.30 },
+            { x: 0.70, z: 0.42 },
+            { x: 0.34, z: 0.46 },
+            { x: 0.12, z: 0.36 },
+          ],
+        },
+        {
+          id: 'promenade-pocket',
+          label: 'Promenade pocket',
+          minProgress: 0.34,
+          maxProgress: 0.9,
+          polygon: [
+            { x: 0.24, z: 0.34 },
+            { x: 0.46, z: 0.28 },
+            { x: 0.60, z: 0.35 },
+            { x: 0.54, z: 0.52 },
+            { x: 0.30, z: 0.56 },
+            { x: 0.18, z: 0.46 },
+          ],
+        },
+      ],
+    },
     status: 'Render Ready',
     updatedAt: 'April 18, 2026',
     scene: {
@@ -121,68 +183,9 @@ export const LOCATIONS: LocationRecord[] = [
         id: 'mid-century',
         label: '2050 Outlook',
         year: 2050,
-        riseMeters: 0.15,
+        riseMeters: 0.74,
         narration:
           'Mid-century rise begins to pressure the lowest waterfront paths and exposed transport edges.',
-        color: '#38bdf8',
-      },
-      {
-        id: 'worst-case',
-        label: '2100 Projection',
-        year: 2100,
-        riseMeters: 0.35,
-        narration:
-          'End-of-century projection based on observed tidal trends extrapolated from NOAA station data.',
-        color: '#f97316',
-      },
-    ],
-    defaultHotspotId: 'waterfront',
-  },
-  {
-    slug: 'annaberg',
-    name: 'Annaberg Sugar Plantation',
-    region: 'St. John, U.S. Virgin Islands',
-    description:
-      'Aerial photogrammetry capture of the Annaberg Sugar Plantation ruins. Gaussian splat render from the latest output.ply export.',
-    splatUrl: '/annaberg_output.ply',
-    renderer: 'splat',
-    status: 'Render Ready',
-    updatedAt: 'April 19, 2026',
-    scene: {
-      year: 2026,
-      rise: 0,
-      label: 'Output',
-      color: '#f59e0b',
-    },
-    sources: ['output.ply export', 'Gaussian splat renderer'],
-    hotspots: [
-      {
-        id: 'render-center',
-        name: 'Render Center',
-        aliases: ['render center', 'output', 'splat', 'scene', 'plantation'],
-        description: 'The center view for the Annaberg Sugar Plantation splat render.',
-        cameraPose: {
-          position: [-1.0, 0.5, 1.2],
-          target: [0, 0, 0],
-        },
-        explainText: 'Showing the Annaberg Sugar Plantation ruins from the aerial Gaussian splat render.',
-      },
-    ],
-    scenarios: [
-      {
-        id: 'baseline',
-        label: 'Baseline',
-        year: 2026,
-        riseMeters: 0,
-        narration: 'Baseline render capture of Annaberg Sugar Plantation with no added sea-level rise.',
-        color: '#f59e0b',
-      },
-      {
-        id: 'mid-century',
-        label: '2050 Outlook',
-        year: 2050,
-        riseMeters: 0.74,
-        narration: 'Mid-century rise preview for Annaberg.',
         color: '#38bdf8',
       },
       {
@@ -190,11 +193,12 @@ export const LOCATIONS: LocationRecord[] = [
         label: '2100 Worst Case',
         year: 2100,
         riseMeters: 1.92,
-        narration: 'Highest-rise preview for Annaberg.',
+        narration:
+          'The highest scenario pushes water well past the current shoreline and into critical waterfront infrastructure.',
         color: '#f97316',
       },
     ],
-    defaultHotspotId: 'render-center',
+    defaultHotspotId: 'waterfront',
   },
   {
     slug: 'maine',
@@ -204,6 +208,10 @@ export const LOCATIONS: LocationRecord[] = [
       'Gaussian splat render from the latest output.ply export. Use this row to open the corrected splat renderer directly.',
     splatUrl: '/maine_output.ply',
     renderer: 'splat',
+    floodCalibration: {
+      startY: -1.5,
+      endY: 0.8,
+    },
     status: 'Render Ready',
     updatedAt: 'April 18, 2026',
     scene: {
@@ -216,14 +224,92 @@ export const LOCATIONS: LocationRecord[] = [
     hotspots: [
       {
         id: 'render-center',
-        name: 'Render Center',
-        aliases: ['render center', 'output', 'splat', 'scene'],
-        description: 'The center view for the latest output.ply export.',
+        name: 'SLAM output',
+        aliases: [
+          'maine output',
+          'maine',
+          'slam output',
+          'slam',
+          'render center',
+          'output',
+          'splat',
+          'scene',
+        ],
+        description: 'Latest fused point cloud / splat from the Maine SLAM pipeline.',
         cameraPose: {
           position: [-3.5, 2, 5.5],
           target: [0, 0.4, 0],
         },
-        explainText: 'Showing the render center for the latest output.ply export.',
+        explainText: 'Showing the Maine Gaussian splat reconstruction.',
+      },
+    ],
+    scenarios: [
+      {
+        id: 'baseline',
+        label: 'Baseline',
+        year: 2026,
+        riseMeters: 0,
+        narration: 'Baseline render capture from the Maine export with no added sea-level rise.',
+        color: '#7dd3fc',
+      },
+      {
+        id: 'mid-century',
+        label: '2050 Outlook',
+        year: 2050,
+        riseMeters: 0.15,
+        narration: 'Mid-century rise preview for the Maine splat render.',
+        color: '#38bdf8',
+      },
+      {
+        id: 'worst-case',
+        label: '2100 Projection',
+        year: 2100,
+        riseMeters: 0.35,
+        narration:
+          'End-of-century projection based on observed tidal trends extrapolated from NOAA station data.',
+        color: '#f97316',
+      },
+    ],
+    defaultHotspotId: 'render-center',
+  },
+  {
+    slug: 'output-splat',
+    name: 'Output Splat',
+    region: '',
+    description: '',
+    splatUrl: '/output.ply',
+    renderer: 'splat',
+    floodCalibration: {
+      startY: -1.5,
+      endY: 0.8,
+    },
+    status: 'Render Ready',
+    updatedAt: 'April 18, 2026',
+    scene: {
+      year: 2026,
+      rise: 0,
+      label: 'Output',
+      color: '#7dd3fc',
+    },
+    sources: ['output.ply export', 'Gaussian splat renderer'],
+    hotspots: [
+      {
+        id: 'render-center',
+        name: 'SLAM output',
+        aliases: [
+          'slam output',
+          'slam',
+          'render center',
+          'output',
+          'splat',
+          'scene',
+        ],
+        description: 'Latest fused point cloud / splat from the SLAM pipeline.',
+        cameraPose: {
+          position: [-3.5, 2, 5.5],
+          target: [0, 0.4, 0],
+        },
+        explainText: 'Showing the SLAM reconstruction as a Gaussian splat.',
       },
     ],
     scenarios: [
@@ -239,16 +325,16 @@ export const LOCATIONS: LocationRecord[] = [
         id: 'mid-century',
         label: '2050 Outlook',
         year: 2050,
-        riseMeters: 0.15,
+        riseMeters: 0.74,
         narration: 'Mid-century rise preview for the output.ply render.',
         color: '#38bdf8',
       },
       {
         id: 'worst-case',
-        label: '2100 Projection',
+        label: '2100 Worst Case',
         year: 2100,
-        riseMeters: 0.35,
-        narration: 'End-of-century projection based on observed tidal trends extrapolated from NOAA station data.',
+        riseMeters: 1.92,
+        narration: 'Highest-rise preview for the output.ply render.',
         color: '#f97316',
       },
     ],

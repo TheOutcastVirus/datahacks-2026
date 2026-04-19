@@ -1,114 +1,161 @@
-// Dataset pose data — populated inside main() after dynamic import
-let cameras = [];
-let trajectoryPoints = [];
-let trajArcLengths = [0];
-let trajTotalLength = 0;
-let trajectoryT = 0.0;
-let sampledTrajectoryIndices = [];
+let cameras = [
+    {
+        id: 0,
+        img_name: "00001",
+        width: 1959,
+        height: 1090,
+        position: [
+            -3.0089893469241797, -0.11086489695181866, -3.7527640949141428,
+        ],
+        rotation: [
+            [0.876134201218856, 0.06925962026449776, 0.47706599800804744],
+            [-0.04747421839895102, 0.9972110940209488, -0.057586739349882114],
+            [-0.4797239414934443, 0.027805376500959853, 0.8769787916452908],
+        ],
+        fy: 1164.6601287484507,
+        fx: 1159.5880733038064,
+    },
+    {
+        id: 1,
+        img_name: "00009",
+        width: 1959,
+        height: 1090,
+        position: [
+            -2.5199776022057296, -0.09704735754873686, -3.6247725540304545,
+        ],
+        rotation: [
+            [0.9982731285632193, -0.011928707708098955, -0.05751927260507243],
+            [0.0065061360949636325, 0.9955928229282383, -0.09355533724430458],
+            [0.058381769258182864, 0.09301955098900708, 0.9939511719154457],
+        ],
+        fy: 1164.6601287484507,
+        fx: 1159.5880733038064,
+    },
+    {
+        id: 2,
+        img_name: "00017",
+        width: 1959,
+        height: 1090,
+        position: [
+            -0.7737533667465242, -0.3364271945329695, -2.9358969417573753,
+        ],
+        rotation: [
+            [0.9998813418672372, 0.013742375651625236, -0.0069605529394208224],
+            [-0.014268370388586709, 0.996512943252834, -0.08220929105659476],
+            [0.00580653013657589, 0.08229885200307129, 0.9965907801935302],
+        ],
+        fy: 1164.6601287484507,
+        fx: 1159.5880733038064,
+    },
+    {
+        id: 3,
+        img_name: "00025",
+        width: 1959,
+        height: 1090,
+        position: [
+            1.2198221749590001, -0.2196687861401182, -2.3183162007028453,
+        ],
+        rotation: [
+            [0.9208648867765482, 0.0012010625395201253, 0.389880004297208],
+            [-0.06298204172269357, 0.987319521752825, 0.14571693239364383],
+            [-0.3847611242348369, -0.1587410451475895, 0.9092635249821667],
+        ],
+        fy: 1164.6601287484507,
+        fx: 1159.5880733038064,
+    },
+    {
+        id: 4,
+        img_name: "00033",
+        width: 1959,
+        height: 1090,
+        position: [
+            1.742387858893817, -0.13848225198886954, -2.0566370113193146,
+        ],
+        rotation: [
+            [0.24669889292141334, -0.08370189346592856, -0.9654706879349405],
+            [0.11343747891376445, 0.9919082664242816, -0.05700815184573074],
+            [0.9624300466054861, -0.09545671285663988, 0.2541976029815521],
+        ],
+        fy: 1164.6601287484507,
+        fx: 1159.5880733038064,
+    },
+    {
+        id: 5,
+        img_name: "00041",
+        width: 1959,
+        height: 1090,
+        position: [
+            3.6567309419223935, -0.16470990600750707, -1.3458085590422042,
+        ],
+        rotation: [
+            [0.2341293058324528, -0.02968330457755884, -0.9717522161434825],
+            [0.10270823606832301, 0.99469554638321, -0.005638106875665722],
+            [0.9667649592295676, -0.09848690996657204, 0.2359360976431732],
+        ],
+        fy: 1164.6601287484507,
+        fx: 1159.5880733038064,
+    },
+    {
+        id: 6,
+        img_name: "00049",
+        width: 1959,
+        height: 1090,
+        position: [
+            3.9013554243203497, -0.2597500978038105, -0.8106154188297828,
+        ],
+        rotation: [
+            [0.6717235545638952, -0.015718162115524837, -0.7406351366386528],
+            [0.055627354673906296, 0.9980224478387622, 0.029270992841185218],
+            [0.7387104058127439, -0.060861588786650656, 0.6712695459756353],
+        ],
+        fy: 1164.6601287484507,
+        fx: 1159.5880733038064,
+    },
+    {
+        id: 7,
+        img_name: "00057",
+        width: 1959,
+        height: 1090,
+        position: [4.742994605467533, -0.05591660945412069, 0.9500365976084458],
+        rotation: [
+            [-0.17042655709210375, 0.01207080756938, -0.9852964448542146],
+            [0.1165090336695526, 0.9931575292530063, -0.00798543433078162],
+            [0.9784581921120181, -0.1161568667478904, -0.1706667764862097],
+        ],
+        fy: 1164.6601287484507,
+        fx: 1159.5880733038064,
+    },
+    {
+        id: 8,
+        img_name: "00065",
+        width: 1959,
+        height: 1090,
+        position: [4.34676307626522, 0.08168160516967145, 1.0876221470355405],
+        rotation: [
+            [-0.003575447631888379, -0.044792503246552894, -0.9989899137764799],
+            [0.10770152645126597, 0.9931680875192705, -0.04491693593046672],
+            [0.9941768441149182, -0.10775333677534978, 0.0012732004866391048],
+        ],
+        fy: 1164.6601287484507,
+        fx: 1159.5880733038064,
+    },
+    {
+        id: 9,
+        img_name: "00073",
+        width: 1959,
+        height: 1090,
+        position: [3.264984351114202, 0.078974937336732, 1.0117200284114904],
+        rotation: [
+            [-0.026919994628162257, -0.1565891128261527, -0.9872968974090509],
+            [0.08444552208239385, 0.983768234577625, -0.1583319754069128],
+            [0.9960643893290491, -0.0876350978794554, -0.013259786205163005],
+        ],
+        fy: 1164.6601287484507,
+        fx: 1159.5880733038064,
+    },
+];
 
-// Orbit radius used as pivot distance for mouse-drag orbiting
-let orbitRadius = 4;
-
-// Water level (0-1 progress, updated via postMessage)
-let waterLevelProgress = 0;
-let sceneYMin = 0;
-let sceneYMax = 1;
-const MIN_ORBIT_RADIUS = 0.05;
-const MAX_ORBIT_RADIUS = 15;
-
-// Viewport offsets — tune these to align the trajectory in the scene
-let xyzOffset = [0, 0, 0];   // world-space XYZ added to camera position each frame
-let zoomOffset = 0;           // local-Z push along camera forward (negative = zoom in)
-
-function getTrajectoryPosition(t) {
-    t = Math.max(0, Math.min(trajTotalLength, t));
-    for (let i = 1; i < trajArcLengths.length; i++) {
-        if (t <= trajArcLengths[i]) {
-            const alpha =
-                (t - trajArcLengths[i - 1]) /
-                (trajArcLengths[i] - trajArcLengths[i - 1]);
-            const A = trajectoryPoints[i - 1],
-                B = trajectoryPoints[i];
-            return [
-                A[0] + alpha * (B[0] - A[0]),
-                A[1] + alpha * (B[1] - A[1]),
-                A[2] + alpha * (B[2] - A[2]),
-            ];
-        }
-    }
-    return trajectoryPoints[trajectoryPoints.length - 1].slice();
-}
-
-function mat3ToQuat(R) {
-    const r = R.flat();
-    const trace = r[0] + r[4] + r[8];
-    let w, x, y, z;
-    if (trace > 0) {
-        const s = 0.5 / Math.sqrt(trace + 1);
-        w = 0.25 / s; x = (r[7] - r[5]) * s; y = (r[2] - r[6]) * s; z = (r[3] - r[1]) * s;
-    } else if (r[0] > r[4] && r[0] > r[8]) {
-        const s = 2 * Math.sqrt(1 + r[0] - r[4] - r[8]);
-        w = (r[7] - r[5]) / s; x = 0.25 * s; y = (r[1] + r[3]) / s; z = (r[2] + r[6]) / s;
-    } else if (r[4] > r[8]) {
-        const s = 2 * Math.sqrt(1 + r[4] - r[0] - r[8]);
-        w = (r[2] - r[6]) / s; x = (r[1] + r[3]) / s; y = 0.25 * s; z = (r[5] + r[7]) / s;
-    } else {
-        const s = 2 * Math.sqrt(1 + r[8] - r[0] - r[4]);
-        w = (r[3] - r[1]) / s; x = (r[2] + r[6]) / s; y = (r[5] + r[7]) / s; z = 0.25 * s;
-    }
-    const len = Math.sqrt(w*w + x*x + y*y + z*z);
-    return [w/len, x/len, y/len, z/len];
-}
-
-function slerpQuat(q1, q2, t) {
-    let [w1,x1,y1,z1] = q1, [w2,x2,y2,z2] = q2;
-    let dot = w1*w2 + x1*x2 + y1*y2 + z1*z2;
-    if (dot < 0) { w2=-w2; x2=-x2; y2=-y2; z2=-z2; dot=-dot; }
-    if (dot > 0.9995) {
-        const len = Math.sqrt((w1+t*(w2-w1))**2 + (x1+t*(x2-x1))**2 + (y1+t*(y2-y1))**2 + (z1+t*(z2-z1))**2);
-        return [(w1+t*(w2-w1))/len, (x1+t*(x2-x1))/len, (y1+t*(y2-y1))/len, (z1+t*(z2-z1))/len];
-    }
-    const theta0 = Math.acos(dot), theta = theta0 * t;
-    const s1 = Math.cos(theta) - dot * Math.sin(theta) / Math.sin(theta0);
-    const s2 = Math.sin(theta) / Math.sin(theta0);
-    return [s1*w1+s2*w2, s1*x1+s2*x2, s1*y1+s2*y2, s1*z1+s2*z2];
-}
-
-function quatToMat3(q) {
-    const [w,x,y,z] = q;
-    return [
-        [1-2*(y*y+z*z), 2*(x*y-w*z), 2*(x*z+w*y)],
-        [2*(x*y+w*z), 1-2*(x*x+z*z), 2*(y*z-w*x)],
-        [2*(x*z-w*y), 2*(y*z+w*x), 1-2*(x*x+y*y)]
-    ];
-}
-
-function interpolateCameraAt(t) {
-    const pos = getTrajectoryPosition(t);
-    let camA = 0, camB = Math.min(1, cameras.length - 1);
-    for (let i = 0; i < cameras.length - 1; i++) {
-        if (t <= trajArcLengths[sampledTrajectoryIndices[i + 1]]) {
-            camA = i; camB = i + 1; break;
-        }
-        camA = i; camB = i + 1;
-    }
-    const tA = trajArcLengths[sampledTrajectoryIndices[camA]];
-    const tB = trajArcLengths[sampledTrajectoryIndices[camB]];
-    const alpha = tB > tA ? Math.max(0, Math.min(1, (t - tA) / (tB - tA))) : 0;
-    const cA = cameras[camA], cB = cameras[camB];
-    return {
-        position: pos,
-        rotation: quatToMat3(slerpQuat(mat3ToQuat(cA.rotation), mat3ToQuat(cB.rotation), alpha)),
-        fx: cA.fx + alpha * (cB.fx - cA.fx),
-        fy: cA.fy + alpha * (cB.fy - cA.fy),
-    };
-}
-
-function getTrajectoryViewMatrix(t) {
-    return getViewMatrix(interpolateCameraAt(t));
-}
-
-let camera;
+let camera = cameras[0];
 
 function getProjectionMatrix(fx, fy, width, height) {
     const znear = 0.2;
@@ -502,6 +549,14 @@ function createWorker(self) {
         // IJKL - quaternion/rot (uint8)
         const rowLength = 3 * 4 + 3 * 4 + 4 + 4;
         const buffer = new ArrayBuffer(rowLength * vertexCount);
+        const bounds = {
+            minX: Infinity,
+            minY: Infinity,
+            minZ: Infinity,
+            maxX: -Infinity,
+            maxY: -Infinity,
+            maxZ: -Infinity,
+        };
 
         console.time("build buffer");
         for (let j = 0; j < vertexCount; j++) {
@@ -551,6 +606,13 @@ function createWorker(self) {
             position[1] = attrs.y;
             position[2] = attrs.z;
 
+            bounds.minX = Math.min(bounds.minX, position[0]);
+            bounds.minY = Math.min(bounds.minY, position[1]);
+            bounds.minZ = Math.min(bounds.minZ, position[2]);
+            bounds.maxX = Math.max(bounds.maxX, position[0]);
+            bounds.maxY = Math.max(bounds.maxY, position[1]);
+            bounds.maxZ = Math.max(bounds.maxZ, position[2]);
+
             if (types["f_dc_0"]) {
                 const SH_C0 = 0.28209479177387814;
                 rgba[0] = (0.5 + SH_C0 * attrs.f_dc_0) * 255;
@@ -568,7 +630,7 @@ function createWorker(self) {
             }
         }
         console.timeEnd("build buffer");
-        return buffer;
+        return { buffer, bounds };
     }
 
     const throttledSort = () => {
@@ -590,9 +652,14 @@ function createWorker(self) {
         if (e.data.ply) {
             vertexCount = 0;
             runSort(viewProj);
-            buffer = processPlyBuffer(e.data.ply);
+            const processed = processPlyBuffer(e.data.ply);
+            buffer = processed.buffer;
             vertexCount = Math.floor(buffer.byteLength / rowLength);
-            postMessage({ buffer: buffer, save: !!e.data.save });
+            postMessage({
+                buffer: buffer,
+                bounds: processed.bounds,
+                save: !!e.data.save,
+            });
         } else if (e.data.buffer) {
             buffer = e.data.buffer;
             vertexCount = e.data.vertexCount;
@@ -605,26 +672,6 @@ function createWorker(self) {
     };
 }
 
-const waterVertexShaderSource = `
-#version 300 es
-precision highp float;
-uniform mat4 u_projView;
-uniform float u_planeY;
-in vec2 a_xz;
-void main() {
-    gl_Position = u_projView * vec4(a_xz.x, a_xz.y, u_planeY, 1.0);
-}
-`.trim();
-
-const waterFragmentShaderSource = `
-#version 300 es
-precision mediump float;
-out vec4 fragColor;
-void main() {
-    fragColor = vec4(0.05, 0.35, 0.75, 0.45);
-}
-`.trim();
-
 const vertexShaderSource = `
 #version 300 es
 precision highp float;
@@ -632,23 +679,24 @@ precision highp int;
 
 uniform highp usampler2D u_texture;
 uniform mat4 projection, view;
+uniform mat4 uFloodRotation;
 uniform vec2 focal;
 uniform vec2 viewport;
-uniform float u_waterLevel;
 
 in vec2 position;
 in int index;
 
 out vec4 vColor;
 out vec2 vPosition;
+out vec3 vWorldPos;
+out vec3 vFloodPos;
 
 void main () {
     uvec4 cen = texelFetch(u_texture, ivec2((uint(index) & 0x3ffu) << 1, uint(index) >> 10), 0);
-    if (uintBitsToFloat(cen.z) < u_waterLevel) {
-        gl_Position = vec4(0.0, 0.0, 2.0, 1.0);
-        return;
-    }
-    vec4 cam = view * vec4(uintBitsToFloat(cen.xyz), 1);
+    vec3 worldPos = uintBitsToFloat(cen.xyz);
+    vWorldPos = worldPos;
+    vFloodPos = (uFloodRotation * vec4(worldPos, 1.0)).xyz;
+    vec4 cam = view * vec4(worldPos, 1);
     vec4 pos2d = projection * cam;
 
     float clip = 1.2 * pos2d.w;
@@ -695,8 +743,17 @@ const fragmentShaderSource = `
 #version 300 es
 precision highp float;
 
+uniform float uFloodLevelY;
+uniform float uFloodBandWidth;
+uniform float uFloodEdgeSoftness;
+uniform float uFloodTintStrength;
+uniform vec3 uFloodColor;
+uniform float uTime;
+
 in vec4 vColor;
 in vec2 vPosition;
+in vec3 vWorldPos;
+in vec3 vFloodPos;
 
 out vec4 fragColor;
 
@@ -704,72 +761,111 @@ void main () {
     float A = -dot(vPosition, vPosition);
     if (A < -4.0) discard;
     float B = exp(A) * vColor.a;
-    fragColor = vec4(B * vColor.rgb, B);
+    
+    vec3 baseColor = vColor.rgb;
+    
+    float heightSubmerged = smoothstep(
+        uFloodLevelY + uFloodEdgeSoftness,
+        uFloodLevelY - uFloodEdgeSoftness,
+        vFloodPos.y
+    );
+
+    float waterlineBand = 1.0 - smoothstep(
+        0.0,
+        uFloodBandWidth,
+        abs(vFloodPos.y - uFloodLevelY)
+    );
+
+    float band = waterlineBand;
+
+    float pulse = 0.88 + 0.12 * sin(
+        uTime * 1.6 + vFloodPos.x * 2.2 + vFloodPos.z * 1.8
+    );
+    
+    baseColor = mix(
+        baseColor,
+        uFloodColor,
+        heightSubmerged * uFloodTintStrength
+    );
+    baseColor += band * pulse * vec3(0.05, 0.10, 0.13);
+    
+    fragColor = vec4(B * baseColor, B);
 }
 
 `.trim();
 
-    let defaultViewMatrix;
-    let viewMatrix;
+const waterVertexShaderSource = `
+#version 300 es
+precision highp float;
+
+uniform mat4 projection;
+uniform mat4 view;
+uniform mat4 uFloodInverseRotation;
+uniform vec2 uFloodBoundsMinXZ;
+uniform vec2 uFloodBoundsMaxXZ;
+uniform float uFloodLevelY;
+uniform float uTime;
+
+in vec2 position;
+
+out vec3 vWorldPos;
+out float vWaveStrength;
+
+void main () {
+    vec2 planeUv = position * 0.5 + 0.5;
+    vec2 span = (uFloodBoundsMaxXZ - uFloodBoundsMinXZ) * 1.06;
+    vec2 center = (uFloodBoundsMinXZ + uFloodBoundsMaxXZ) * 0.5;
+    vec2 floodXZ = center + (planeUv - 0.5) * span;
+
+    float waveA = sin(floodXZ.x * 3.4 + uTime * 1.25) * 0.035;
+    float waveB = cos(floodXZ.y * 2.8 - uTime * 1.08) * 0.028;
+    float waveC = sin((floodXZ.x + floodXZ.y) * 2.2 + uTime * 0.84) * 0.02;
+    float wave = waveA + waveB + waveC;
+
+    vec3 floodPos = vec3(floodXZ.x, uFloodLevelY + wave, floodXZ.y);
+    vec3 worldPos = (uFloodInverseRotation * vec4(floodPos, 1.0)).xyz;
+
+    vWorldPos = worldPos;
+    vWaveStrength = wave;
+    gl_Position = projection * view * vec4(worldPos, 1.0);
+}
+`.trim();
+
+const waterFragmentShaderSource = `
+#version 300 es
+precision highp float;
+
+uniform vec3 uWaterColor;
+uniform vec3 uCameraPos;
+
+in vec3 vWorldPos;
+in float vWaveStrength;
+
+out vec4 fragColor;
+
+void main () {
+    vec3 viewDir = normalize(uCameraPos - vWorldPos);
+    float fresnel = pow(1.0 - max(dot(viewDir, vec3(0.0, 1.0, 0.0)), 0.0), 2.4);
+    float ripple = 0.45 + 0.55 * clamp(vWaveStrength * 10.0 + 0.5, 0.0, 1.0);
+    vec3 color = mix(uWaterColor * 0.8, vec3(0.94, 0.985, 1.0), fresnel * 0.78);
+    color += vec3(0.08, 0.14, 0.18) * ripple;
+    float alpha = clamp(0.22 + fresnel * 0.34 + ripple * 0.12, 0.18, 0.74);
+    fragColor = vec4(color, alpha);
+}
+`.trim();
+
+let defaultViewMatrix = [
+    0.47, 0.04, 0.88, 0, -0.11, 0.99, 0.02, 0, -0.88, -0.11, 0.47, 0, 0.07,
+    0.03, 6.55, 1,
+];
+let viewMatrix = defaultViewMatrix;
 async function main() {
     let carousel = false;
     const params = new URLSearchParams(location.search);
-
-    // Dynamically load pose data based on which PLY is being viewed
-    const urlParam = params.get("url") || "";
-    const isAnnaberg = urlParam.toLowerCase().includes("annaberg");
-    if (isAnnaberg) {
-        const mod = await import("./annaberg-pose-data.js");
-        // Pose data is in raw COLMAP space; apply the same gsplat normalize_world_space
-        // transform the extraction script defines: pos_norm = scale * (pos - center)
-        const annCenter = [-0.00619141, -0.03893983, -0.01132717];
-        const annScale = 0.3011857514680327;
-        // COLMAP aerial convention: Z points down (ground = large +Z, cameras = small +Z).
-        // Negate Z so cameras are above the scene in viewer space (Z-up).
-        const normPos = (p) => [
-            annScale * (p[0] - annCenter[0]),
-            annScale * (p[1] - annCenter[1]),
-            -annScale * (p[2] - annCenter[2]),
-        ];
-        // Negate Z column of rotation so forward direction flips with the world Z.
-        const normRot = (r) => r.map(row => [row[0], row[1], -row[2]]);
-        cameras = mod.annabergCameras.map(cam => ({
-            ...cam,
-            position: normPos(cam.position),
-            rotation: normRot(cam.rotation),
-        }));
-        trajectoryPoints = mod.annabergTrajectoryPoints.map(normPos);
-        sampledTrajectoryIndices = mod.sampledTrajectoryIndices;
-    } else {
-        const mod = await import("./maine-pose-data.js");
-        cameras = mod.maineCameras;
-        trajectoryPoints = mod.maineTrajectoryPoints;
-        sampledTrajectoryIndices = mod.sampledTrajectoryIndices;
-    }
-    trajArcLengths = [0];
-    for (let i = 1; i < trajectoryPoints.length; i++) {
-        const p = trajectoryPoints[i], q = trajectoryPoints[i - 1];
-        trajArcLengths.push(
-            trajArcLengths[i - 1] +
-                Math.sqrt((p[0]-q[0])**2 + (p[1]-q[1])**2 + (p[2]-q[2])**2)
-        );
-    }
-    trajTotalLength = trajArcLengths[trajArcLengths.length - 1];
-    camera = cameras[0];
-    const initT = trajArcLengths[sampledTrajectoryIndices[0]];
-    defaultViewMatrix = getTrajectoryViewMatrix(initT);
-    viewMatrix = defaultViewMatrix.slice();
-
     try {
         viewMatrix = JSON.parse(decodeURIComponent(location.hash.slice(1)));
         carousel = false;
     } catch (err) {}
-
-    // Capture the true page-load defaults so reset always returns here
-    const resetViewMatrix = viewMatrix.slice();
-    const resetCamera = cameras[0];
-    const resetTrajectoryT = trajArcLengths[sampledTrajectoryIndices[0]];
-    const resetCameraIndex = 0;
     const url = new URL(
         // "nike.splat",
         // location.href,
@@ -841,10 +937,29 @@ async function main() {
     gl.attachShader(program, vertexShader);
     gl.attachShader(program, fragmentShader);
     gl.linkProgram(program);
-    gl.useProgram(program);
-
     if (!gl.getProgramParameter(program, gl.LINK_STATUS))
         console.error(gl.getProgramInfoLog(program));
+
+    const waterVertexShader = gl.createShader(gl.VERTEX_SHADER);
+    gl.shaderSource(waterVertexShader, waterVertexShaderSource);
+    gl.compileShader(waterVertexShader);
+    if (!gl.getShaderParameter(waterVertexShader, gl.COMPILE_STATUS))
+        console.error(gl.getShaderInfoLog(waterVertexShader));
+
+    const waterFragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+    gl.shaderSource(waterFragmentShader, waterFragmentShaderSource);
+    gl.compileShader(waterFragmentShader);
+    if (!gl.getShaderParameter(waterFragmentShader, gl.COMPILE_STATUS))
+        console.error(gl.getShaderInfoLog(waterFragmentShader));
+
+    const waterProgram = gl.createProgram();
+    gl.attachShader(waterProgram, waterVertexShader);
+    gl.attachShader(waterProgram, waterFragmentShader);
+    gl.linkProgram(waterProgram);
+    if (!gl.getProgramParameter(waterProgram, gl.LINK_STATUS))
+        console.error(gl.getProgramInfoLog(waterProgram));
+
+    gl.useProgram(program);
 
     gl.disable(gl.DEPTH_TEST); // Disable depth testing
 
@@ -862,6 +977,63 @@ async function main() {
     const u_viewport = gl.getUniformLocation(program, "viewport");
     const u_focal = gl.getUniformLocation(program, "focal");
     const u_view = gl.getUniformLocation(program, "view");
+    const u_floodRotation = gl.getUniformLocation(program, "uFloodRotation");
+    
+    // Flood effect uniforms
+    const u_floodLevelY = gl.getUniformLocation(program, "uFloodLevelY");
+    const u_floodBandWidth = gl.getUniformLocation(program, "uFloodBandWidth");
+    const u_floodEdgeSoftness = gl.getUniformLocation(program, "uFloodEdgeSoftness");
+    const u_floodTintStrength = gl.getUniformLocation(program, "uFloodTintStrength");
+    const u_floodColor = gl.getUniformLocation(program, "uFloodColor");
+    const u_floodBoundsMinXZ = gl.getUniformLocation(program, "uFloodBoundsMinXZ");
+    const u_floodBoundsMaxXZ = gl.getUniformLocation(program, "uFloodBoundsMaxXZ");
+    const u_time = gl.getUniformLocation(program, "uTime");
+
+    const u_waterProjection = gl.getUniformLocation(waterProgram, "projection");
+    const u_waterView = gl.getUniformLocation(waterProgram, "view");
+    const u_waterFloodInverseRotation = gl.getUniformLocation(waterProgram, "uFloodInverseRotation");
+    const u_waterBoundsMinXZ = gl.getUniformLocation(waterProgram, "uFloodBoundsMinXZ");
+    const u_waterBoundsMaxXZ = gl.getUniformLocation(waterProgram, "uFloodBoundsMaxXZ");
+    const u_waterLevelY = gl.getUniformLocation(waterProgram, "uFloodLevelY");
+    const u_waterTime = gl.getUniformLocation(waterProgram, "uTime");
+    const u_waterColor = gl.getUniformLocation(waterProgram, "uWaterColor");
+    const u_waterCameraPos = gl.getUniformLocation(waterProgram, "uCameraPos");
+    
+    // Flood state - will be updated via postMessage
+    let floodLevelY = -9999.0; // Start below scene (no flooding)
+    let floodStartY = 0.0;
+    let floodEndY = 1.0;
+    let floodProgress = 0.0;
+    let floodMinX = -1.0;
+    let floodMaxX = 1.0;
+    let floodMinZ = -1.0;
+    let floodMaxZ = 1.0;
+    let floodRotationMatrix = new Float32Array([
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1,
+    ]);
+    let floodInverseRotationMatrix = new Float32Array([
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1,
+    ]);
+    
+    // Set initial flood uniforms
+    gl.uniform1f(u_floodLevelY, floodLevelY);
+    gl.uniform1f(u_floodBandWidth, 0.018);
+    gl.uniform1f(u_floodEdgeSoftness, 0.012);
+    gl.uniform1f(u_floodTintStrength, 0.58);
+    gl.uniform3f(u_floodColor, 0.086, 0.49, 0.588); // #167d96
+    gl.uniformMatrix4fv(u_floodRotation, false, floodRotationMatrix);
+    gl.uniform2f(u_floodBoundsMinXZ, floodMinX, floodMinZ);
+    gl.uniform2f(u_floodBoundsMaxXZ, floodMaxX, floodMaxZ);
+
+    const updateFloodBounds = () => {
+        floodLevelY = floodStartY + (floodEndY - floodStartY) * floodProgress;
+    };
 
     // positions
     const triangleVertices = new Float32Array([-2, -2, 2, -2, 2, 2, -2, 2]);
@@ -886,44 +1058,12 @@ async function main() {
     gl.vertexAttribIPointer(a_index, 1, gl.INT, false, 0, 0);
     gl.vertexAttribDivisor(a_index, 1);
 
-    const u_waterLevel = gl.getUniformLocation(program, "u_waterLevel");
-
-    // Capture splat attribute state in a VAO for clean multi-pass rendering
-    const splatVAO = gl.createVertexArray();
-    gl.bindVertexArray(splatVAO);
-    gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
-    gl.enableVertexAttribArray(a_position);
-    gl.vertexAttribPointer(a_position, 2, gl.FLOAT, false, 0, 0);
-    gl.bindBuffer(gl.ARRAY_BUFFER, indexBuffer);
-    gl.enableVertexAttribArray(a_index);
-    gl.vertexAttribIPointer(a_index, 1, gl.INT, false, 0, 0);
-    gl.vertexAttribDivisor(a_index, 1);
-    gl.bindVertexArray(null);
-
-    // Water plane shader program
-    const waterVert = gl.createShader(gl.VERTEX_SHADER);
-    gl.shaderSource(waterVert, waterVertexShaderSource);
-    gl.compileShader(waterVert);
-    const waterFrag = gl.createShader(gl.FRAGMENT_SHADER);
-    gl.shaderSource(waterFrag, waterFragmentShaderSource);
-    gl.compileShader(waterFrag);
-    const waterProgram = gl.createProgram();
-    gl.attachShader(waterProgram, waterVert);
-    gl.attachShader(waterProgram, waterFrag);
-    gl.linkProgram(waterProgram);
-    const u_waterProjView = gl.getUniformLocation(waterProgram, "u_projView");
-    const u_waterPlaneY = gl.getUniformLocation(waterProgram, "u_planeY");
-    const a_waterXZ = gl.getAttribLocation(waterProgram, "a_xz");
-    const waterXZBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, waterXZBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-200, -200, 200, -200, -200, 200, 200, 200]), gl.STATIC_DRAW);
-    const waterVAO = gl.createVertexArray();
-    gl.bindVertexArray(waterVAO);
-    gl.bindBuffer(gl.ARRAY_BUFFER, waterXZBuffer);
-    gl.enableVertexAttribArray(a_waterXZ);
-    gl.vertexAttribPointer(a_waterXZ, 2, gl.FLOAT, false, 0, 0);
-    gl.bindVertexArray(null);
-    gl.useProgram(program);
+    const waterPlaneVertices = new Float32Array([-1, -1, 1, -1, 1, 1, -1, 1]);
+    const waterVertexBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, waterVertexBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, waterPlaneVertices, gl.STATIC_DRAW);
+    const a_waterPosition = gl.getAttribLocation(waterProgram, "position");
+    gl.vertexAttribDivisor(a_waterPosition, 0);
 
     const resize = () => {
         viewW = Math.max(1, canvas.clientWidth);
@@ -945,6 +1085,9 @@ async function main() {
         gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 
         gl.uniformMatrix4fv(u_projection, false, projectionMatrix);
+        gl.useProgram(waterProgram);
+        gl.uniformMatrix4fv(u_waterProjection, false, projectionMatrix);
+        gl.useProgram(program);
     };
 
     window.addEventListener("resize", resize);
@@ -953,20 +1096,26 @@ async function main() {
     const applyOrbitGesture = (dx, dy) => {
         carousel = false;
         let inv = invert4(viewMatrix);
-        inv = translate4(inv, 0, 0, orbitRadius);
+        let d = 4;
+        inv = translate4(inv, 0, 0, d);
         inv = rotate4(inv, dx, 0, 1, 0);
         inv = rotate4(inv, -dy, 1, 0, 0);
-        inv = translate4(inv, 0, 0, -orbitRadius);
+        inv = translate4(inv, 0, 0, -d);
         viewMatrix = invert4(inv);
     };
 
     const applyZoomGesture = (delta) => {
         carousel = false;
-        zoomOffset -= delta;
+        let inv = invert4(viewMatrix);
+        inv = translate4(inv, 0, 0, delta);
+        viewMatrix = invert4(inv);
     };
 
-    const applyPanGesture = (_dx, _dy) => {
-        // pan disabled — use arrow keys to traverse the trajectory
+    const applyPanGesture = (dx, dy) => {
+        carousel = false;
+        let inv = invert4(viewMatrix);
+        inv = translate4(inv, dx, -dy, 0);
+        viewMatrix = invert4(inv);
     };
 
     const applyRollGesture = (delta) => {
@@ -976,20 +1125,11 @@ async function main() {
         viewMatrix = invert4(inv);
     };
 
-    const defaultXyzOffset = isAnnaberg ? [0, 0, 8] : [0, 0, 0];
-    xyzOffset = defaultXyzOffset.slice();
-    const initZoom = parseFloat(params.get("zoom") || "0");
-    if (!isNaN(initZoom)) zoomOffset = initZoom;
-
     const applyResetGesture = () => {
         carousel = false;
-        currentCameraIndex = resetCameraIndex;
-        trajectoryT = resetTrajectoryT;
-        camera = resetCamera;
-        viewMatrix = resetViewMatrix.slice();
-        xyzOffset = defaultXyzOffset.slice();
-        zoomOffset = 0;
-        resize();
+        currentCameraIndex = 0;
+        camera = cameras[currentCameraIndex];
+        viewMatrix = defaultViewMatrix;
         camid.innerText = "cam  " + currentCameraIndex;
     };
 
@@ -1013,12 +1153,22 @@ async function main() {
             activeKeys = activeKeys.filter((k) => k !== data.code);
             return;
         }
-        if (data && data.type === "splat-flood-progress") {
-            waterLevelProgress = Math.max(0, Math.min(1, data.value));
-            return;
-        }
-        if (data && data.type === "splat-set-zoom") {
-            zoomOffset = data.value;
+        if (data && data.type === "splat-flood") {
+            // Update flood parameters from parent
+            floodProgress = typeof data.progress === 'number' ? data.progress : 0;
+            if (typeof data.startY === 'number') floodStartY = data.startY;
+            if (typeof data.endY === 'number') floodEndY = data.endY;
+            if (typeof data.minX === 'number') floodMinX = data.minX;
+            if (typeof data.maxX === 'number') floodMaxX = data.maxX;
+            if (typeof data.minZ === 'number') floodMinZ = data.minZ;
+            if (typeof data.maxZ === 'number') floodMaxZ = data.maxZ;
+            if (Array.isArray(data.rotationMatrix) && data.rotationMatrix.length === 16) {
+                floodRotationMatrix = new Float32Array(data.rotationMatrix);
+            }
+            if (Array.isArray(data.inverseRotationMatrix) && data.inverseRotationMatrix.length === 16) {
+                floodInverseRotationMatrix = new Float32Array(data.inverseRotationMatrix);
+            }
+            updateFloodBounds();
             return;
         }
         if (!data || data.type !== "splat-hand-control") return;
@@ -1039,16 +1189,15 @@ async function main() {
     worker.onmessage = (e) => {
         if (e.data.buffer) {
             splatData = new Uint8Array(e.data.buffer);
-            // Compute scene Y bounds so waterLevelProgress maps correctly
-            const f32 = new Float32Array(e.data.buffer);
-            let yMin = Infinity, yMax = -Infinity;
-            const rowCount = Math.floor(f32.length / 8);
-            for (let i = 0; i < rowCount; i++) {
-                const y = f32[i * 8 + 2];
-                if (isFinite(y)) { if (y < yMin) yMin = y; if (y > yMax) yMax = y; }
+            if (e.data.bounds) {
+                floodMinX = e.data.bounds.minX;
+                floodStartY = e.data.bounds.minY;
+                floodMinZ = e.data.bounds.minZ;
+                floodMaxX = e.data.bounds.maxX;
+                floodEndY = e.data.bounds.maxY;
+                floodMaxZ = e.data.bounds.maxZ;
+                updateFloodBounds();
             }
-            if (isFinite(yMin) && yMax > yMin) { sceneYMin = yMin; sceneYMax = yMax; }
-            if (window.__debugWater) window.__debugWater._sceneZMin = sceneYMin;
             if (e.data.save) {
                 const blob = new Blob([splatData.buffer], {
                     type: "application/octet-stream",
@@ -1107,36 +1256,18 @@ async function main() {
         if (/\d/.test(e.key)) {
             currentCameraIndex = parseInt(e.key);
             camera = cameras[currentCameraIndex];
-            trajectoryT = trajArcLengths[sampledTrajectoryIndices[currentCameraIndex]];
             viewMatrix = getViewMatrix(camera);
         }
         if (["-", "_"].includes(e.key)) {
             currentCameraIndex =
                 (currentCameraIndex + cameras.length - 1) % cameras.length;
-            camera = cameras[currentCameraIndex];
-            trajectoryT = trajArcLengths[sampledTrajectoryIndices[currentCameraIndex]];
-            viewMatrix = getViewMatrix(camera);
+            viewMatrix = getViewMatrix(cameras[currentCameraIndex]);
         }
         if (["+", "="].includes(e.key)) {
             currentCameraIndex = (currentCameraIndex + 1) % cameras.length;
-            camera = cameras[currentCameraIndex];
-            trajectoryT = trajArcLengths[sampledTrajectoryIndices[currentCameraIndex]];
-            viewMatrix = getViewMatrix(camera);
+            viewMatrix = getViewMatrix(cameras[currentCameraIndex]);
         }
         camid.innerText = "cam  " + currentCameraIndex;
-        if (e.code === "BracketLeft") {
-            zoomOffset -= 0.1;
-        } else if (e.code === "BracketRight") {
-            zoomOffset += 0.1;
-        } else if (e.code === "ArrowUp" && e.shiftKey) {
-            xyzOffset[1] += 0.1;
-        } else if (e.code === "ArrowDown" && e.shiftKey) {
-            xyzOffset[1] -= 0.1;
-        } else if (e.code === "ArrowLeft" && e.shiftKey) {
-            xyzOffset[0] -= 0.1;
-        } else if (e.code === "ArrowRight" && e.shiftKey) {
-            xyzOffset[0] += 0.1;
-        }
         if (e.code == "KeyV") {
             location.hash =
                 "#" +
@@ -1168,8 +1299,34 @@ async function main() {
                     : e.deltaMode == 2
                       ? viewH
                       : 1;
-            // Scroll zooms by moving camera along its local forward axis
-            zoomOffset += (e.deltaY * scale) / viewH;
+            let inv = invert4(viewMatrix);
+            if (e.shiftKey) {
+                inv = translate4(
+                    inv,
+                    (e.deltaX * scale) / viewW,
+                    (e.deltaY * scale) / viewH,
+                    0,
+                );
+            } else if (e.ctrlKey || e.metaKey) {
+                // inv = rotate4(inv,  (e.deltaX * scale) / viewW,  0, 0, 1);
+                // inv = translate4(inv,  0, (e.deltaY * scale) / viewH, 0);
+                // let preY = inv[13];
+                inv = translate4(
+                    inv,
+                    0,
+                    0,
+                    (-10 * (e.deltaY * scale)) / viewH,
+                );
+                // inv[13] = preY;
+            } else {
+                let d = 4;
+                inv = translate4(inv, 0, 0, d);
+                inv = rotate4(inv, -(e.deltaX * scale) / viewW, 0, 1, 0);
+                inv = rotate4(inv, (e.deltaY * scale) / viewH, 1, 0, 0);
+                inv = translate4(inv, 0, 0, -d);
+            }
+
+            viewMatrix = invert4(inv);
         },
         { passive: false },
     );
@@ -1220,7 +1377,7 @@ async function main() {
                 (10 * (e.clientY - startY)) / viewH,
             );
             // inv[13] = preY;
-            // pan disabled
+            viewMatrix = invert4(inv);
 
             startX = e.clientX;
             startY = e.clientY;
@@ -1358,28 +1515,32 @@ async function main() {
             activeKeys.includes("ShiftLeft") ||
             activeKeys.includes("ShiftRight");
 
-        // Arrow left/right traverse the trajectory (only when Shift is not held)
-        const TRAJ_STEP = 0.008;
-        if (activeKeys.includes("ArrowLeft") && !shiftKey) {
-            trajectoryT = Math.max(0, trajectoryT - TRAJ_STEP);
-            const ci = interpolateCameraAt(trajectoryT);
-            viewMatrix = getViewMatrix(ci);
-            inv = invert4(viewMatrix);
-            projectionMatrix = getProjectionMatrix(ci.fx, ci.fy, viewW, viewH);
-            gl.uniform2fv(u_focal, new Float32Array([ci.fx, ci.fy]));
-            carousel = false;
+        if (activeKeys.includes("ArrowUp")) {
+            if (shiftKey) {
+                inv = translate4(inv, 0, -0.03, 0);
+            } else {
+                inv = translate4(inv, 0, 0, 0.1);
+            }
         }
-        if (activeKeys.includes("ArrowRight") && !shiftKey) {
-            trajectoryT = Math.min(trajTotalLength, trajectoryT + TRAJ_STEP);
-            const ci = interpolateCameraAt(trajectoryT);
-            viewMatrix = getViewMatrix(ci);
-            inv = invert4(viewMatrix);
-            projectionMatrix = getProjectionMatrix(ci.fx, ci.fy, viewW, viewH);
-            gl.uniform2fv(u_focal, new Float32Array([ci.fx, ci.fy]));
-            carousel = false;
+        if (activeKeys.includes("ArrowDown")) {
+            if (shiftKey) {
+                inv = translate4(inv, 0, 0.03, 0);
+            } else {
+                inv = translate4(inv, 0, 0, -0.1);
+            }
         }
+        if (activeKeys.includes("ArrowLeft"))
+            inv = translate4(inv, -0.03, 0, 0);
+        //
+        if (activeKeys.includes("ArrowRight"))
+            inv = translate4(inv, 0.03, 0, 0);
+        // inv = rotate4(inv, 0.01, 0, 1, 0);
+        if (activeKeys.includes("KeyA")) inv = translate4(inv, -0.05, 0, 0);
+        if (activeKeys.includes("KeyD")) inv = translate4(inv, 0.05, 0, 0);
         if (activeKeys.includes("KeyQ")) inv = rotate4(inv, 0.01, 0, 0, 1);
         if (activeKeys.includes("KeyE")) inv = rotate4(inv, -0.01, 0, 0, 1);
+        if (activeKeys.includes("KeyW")) inv = translate4(inv, 0, 0, 0.1);
+        if (activeKeys.includes("KeyS")) inv = translate4(inv, 0, 0, -0.1);
 
         const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
         let isJumping = activeKeys.includes("Space");
@@ -1515,44 +1676,40 @@ async function main() {
         let inv2 = invert4(viewMatrix);
         inv2 = translate4(inv2, 0, -jumpDelta, 0);
         inv2 = rotate4(inv2, -0.1 * jumpDelta, 1, 0, 0);
-        // Apply world-space XYZ offset
-        inv2[12] += xyzOffset[0];
-        inv2[13] += xyzOffset[1];
-        inv2[14] += xyzOffset[2];
-        // Apply zoom — clamp to prevent seeing outside the splat boundary
-        zoomOffset = Math.max(-1.5, Math.min(3, zoomOffset));
-        inv2 = translate4(inv2, 0, 0, zoomOffset);
         let actualViewMatrix = invert4(inv2);
 
         const viewProj = multiply4(projectionMatrix, actualViewMatrix);
         worker.postMessage({ view: viewProj });
-        parent.postMessage({ type: 'splat-zoom', value: zoomOffset }, '*');
 
         const currentFps = 1000 / (now - lastFrame) || 0;
         avgFps = avgFps * 0.9 + currentFps * 0.1;
 
         if (vertexCount > 0) {
             document.getElementById("spinner").style.display = "none";
-            const baselineZ = (window.__debugWater?.baselineOverride != null)
-                ? window.__debugWater.baselineOverride
-                : isAnnaberg ? -0.25 : sceneYMin + 1.53;
-            const waterY = baselineZ + waterLevelProgress * (sceneYMax - baselineZ);
-            const waterVisible = waterLevelProgress > 0;
-            gl.uniform1f(u_waterLevel, waterVisible ? waterY : -1e9);
-            gl.uniformMatrix4fv(u_view, false, actualViewMatrix);
             gl.clear(gl.COLOR_BUFFER_BIT);
-            gl.bindVertexArray(splatVAO);
+
+            gl.useProgram(waterProgram);
+            gl.uniformMatrix4fv(u_waterView, false, actualViewMatrix);
+            gl.uniformMatrix4fv(u_waterFloodInverseRotation, false, floodInverseRotationMatrix);
+            gl.uniform2f(u_waterBoundsMinXZ, floodMinX, floodMinZ);
+            gl.uniform2f(u_waterBoundsMaxXZ, floodMaxX, floodMaxZ);
+            gl.uniform1f(u_waterLevelY, floodLevelY);
+            gl.uniform1f(u_waterTime, now / 1000.0);
+            gl.uniform3f(u_waterColor, 0.435, 0.839, 1.0);
+            gl.uniform3f(u_waterCameraPos, inv2[12], inv2[13], inv2[14]);
+            gl.bindBuffer(gl.ARRAY_BUFFER, waterVertexBuffer);
+            gl.enableVertexAttribArray(a_waterPosition);
+            gl.vertexAttribPointer(a_waterPosition, 2, gl.FLOAT, false, 0, 0);
+            gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+
+            gl.useProgram(program);
+            gl.uniformMatrix4fv(u_view, false, actualViewMatrix);
+            gl.uniformMatrix4fv(u_floodRotation, false, floodRotationMatrix);
+            gl.uniform1f(u_floodLevelY, floodLevelY);
+            gl.uniform2f(u_floodBoundsMinXZ, floodMinX, floodMinZ);
+            gl.uniform2f(u_floodBoundsMaxXZ, floodMaxX, floodMaxZ);
+            gl.uniform1f(u_time, now / 1000.0);
             gl.drawArraysInstanced(gl.TRIANGLE_FAN, 0, 4, vertexCount);
-            if (waterVisible) {
-                gl.useProgram(waterProgram);
-                gl.bindVertexArray(waterVAO);
-                gl.uniformMatrix4fv(u_waterProjView, false, viewProj);
-                gl.uniform1f(u_waterPlaneY, waterY);
-                gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-                gl.useProgram(program);
-                gl.bindVertexArray(splatVAO);
-            }
-            gl.bindVertexArray(null);
         } else {
             gl.clear(gl.COLOR_BUFFER_BIT);
             document.getElementById("spinner").style.display = "";

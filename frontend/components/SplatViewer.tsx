@@ -11,7 +11,17 @@ import {
 import type { Camera, Vector3 } from 'three';
 import type { OrbitControls as OrbitControlsType } from 'three/examples/jsm/controls/OrbitControls.js';
 
-import type { SceneHotspot } from '@/lib/locations';
+import {
+  buildEulerRotationMatrices,
+  computeFloodVolumeFromLocalBox,
+  lerp,
+} from '@/lib/flood';
+import type { FloodVolume } from '@/lib/flood';
+import type {
+  FloodCalibration,
+  FloodOverlay,
+  SceneHotspot,
+} from '@/lib/locations';
 import type { CameraPose, ViewerCommandApi, ViewerState } from '@/lib/viewer-types';
 type SplatGestureMessage =
   | { type: 'splat-hand-control'; action: 'orbit'; dx: number; dy: number }
@@ -27,6 +37,27 @@ type HandStatus =
   | 'no-hand'
   | 'permission-denied'
   | 'error';
+
+function handStatusShortLabel(status: HandStatus): string {
+  switch (status) {
+    case 'inactive':
+      return 'Off';
+    case 'initializing':
+      return 'Starting';
+    case 'requesting-camera':
+      return 'Camera';
+    case 'no-hand':
+      return 'Ready';
+    case 'tracking':
+      return 'Live';
+    case 'permission-denied':
+      return 'Blocked';
+    case 'error':
+      return 'Error';
+    default:
+      return 'Hand';
+  }
+}
 
 type Point2 = { x: number; y: number };
 type DetectedHand = 'left' | 'right' | 'unknown';
@@ -57,10 +88,6 @@ type FingerState = {
   pinky: boolean;
 };
 type HandednessPrediction = Array<Array<{ categoryName?: string | null }>> | undefined;
-type FloodCalibration = {
-  startY: number;
-  endY: number;
-};
 type FloodShader = {
   uniforms: {
     uFloodLevelY: { value: number };
@@ -68,10 +95,19 @@ type FloodShader = {
     uFloodEdgeSoftness: { value: number };
     uFloodTintStrength: { value: number };
     uFloodColor: { value: import('three').Color };
+    uFloodBoundsMinXZ: { value: import('three').Vector2 };
+    uFloodBoundsMaxXZ: { value: import('three').Vector2 };
+    uFloodReach: { value: number };
+    uFloodProgress: { value: number };
     uTime: { value: number };
   };
 };
-
+type FloodOverlayController = {
+  root: import('three').Group;
+  rebuild: (rx: number, ry: number, rz: number) => void;
+  update: (progress: number, calibration: FloodCalibration, timeSeconds: number) => void;
+  dispose: () => void;
+};
 const HAND_LANDMARKER_MODEL_URL =
   'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
 const HAND_LANDMARKER_WASM_URL =
@@ -86,12 +122,6 @@ const PINCH_ENTER_THRESHOLD = 0.11;
 const PINCH_EXIT_THRESHOLD = 0.18;
 const OPEN_PALM_RESET_HOLD_MS = 1200;
 const OPEN_PALM_RESET_DEADZONE = 0.0014;
-const FLOOD_CALIBRATION_BY_URL: Record<string, FloodCalibration> = {
-  '/Cabbage-mvs_1012_04.ply': {
-    startY: 0.1356126070022583,
-    endY: 0.4573782980442047,
-  },
-};
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -189,47 +219,248 @@ function rollOrbitCamera(controls: OrbitControlsType, delta: number) {
   camera.up.normalize();
   controls.update();
 }
-function lerp(start: number, end: number, amount: number) {
-  return start + (end - start) * amount;
+function getWorldYCoefficients(rx: number, ry: number, rz: number) {
+  const cx = Math.cos(rx);
+  const sx = Math.sin(rx);
+  const cy = Math.cos(ry);
+  const sy = Math.sin(ry);
+  const cz = Math.cos(rz);
+  const sz = Math.sin(rz);
+
+  return {
+    m10: cy * sz,
+    m11: cx * cz + sx * sy * sz,
+    m12: cx * sy * sz - cz * sx,
+  };
 }
 
-function computeWorldYBounds(
-  localBox: { min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } },
+function solveHorizontalPlaneLocalY(
+  x: number,
+  z: number,
   rx: number,
   ry: number,
   rz: number,
-): FloodCalibration {
-  // Euler XYZ: R = Rz * Ry * Rx — extract row 1 (world Y) coefficients
-  const cx = Math.cos(rx), sx = Math.sin(rx);
-  const cy = Math.cos(ry), sy = Math.sin(ry);
-  const cz = Math.cos(rz), sz = Math.sin(rz);
-  const m10 = cy * sz;
-  const m11 = cx * cz + sx * sy * sz;
-  const m12 = cx * sy * sz - cz * sx;
-  const { min, max } = localBox;
-  const xs = [min.x, max.x];
-  const ys = [min.y, max.y];
-  const zs = [min.z, max.z];
-  let minY = Infinity, maxY = -Infinity;
-  for (const x of xs) for (const y of ys) for (const z of zs) {
-    const wy = m10 * x + m11 * y + m12 * z;
-    if (wy < minY) minY = wy;
-    if (wy > maxY) maxY = wy;
+  targetWorldY = 0,
+) {
+  const coefficients = getWorldYCoefficients(rx, ry, rz);
+  if (Math.abs(coefficients.m11) < 1e-5) {
+    return 0;
   }
-  return { startY: minY, endY: maxY };
+  return (targetWorldY - coefficients.m10 * x - coefficients.m12 * z) / coefficients.m11;
 }
 
-function resolveFloodCalibration(
-  splatUrl: string,
-  boundingBox: import('three').Box3 | null | undefined,
-): FloodCalibration {
-  const calibrated = FLOOD_CALIBRATION_BY_URL[splatUrl];
-  if (calibrated) return calibrated;
+function createFloodOverlayController(
+  THREE: typeof import('three'),
+  scene: import('three').Scene,
+  localBox: { min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } },
+  overlay: FloodOverlay,
+  initialRotation: { x: number; y: number; z: number },
+): FloodOverlayController {
+  const root = new THREE.Group();
+  root.name = 'FloodOverlayRoot';
+  scene.add(root);
+
+  const sizeX = Math.max(localBox.max.x - localBox.min.x, 0.001);
+  const sizeZ = Math.max(localBox.max.z - localBox.min.z, 0.001);
+
+  const regionEntries = overlay.regions.map((region) => {
+    const proxyMaterial = new THREE.MeshBasicMaterial({
+      color: '#0a2530',
+      transparent: true,
+      opacity: 0,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const surfaceMaterial = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      uniforms: {
+        uTime: { value: 0 },
+        uOpacity: { value: 0 },
+        uBaseColor: { value: new THREE.Color('#0b7ca2') },
+        uHighlightColor: { value: new THREE.Color('#88ecff') },
+      },
+      vertexShader: `
+        uniform float uTime;
+        varying vec3 vWorldPosition;
+        varying float vWave;
+
+        void main() {
+          vec3 transformed = position;
+          float waveA = sin(position.x * 3.4 + uTime * 1.3);
+          float waveB = cos(position.z * 4.1 - uTime * 1.1);
+          float waveC = sin((position.x + position.z) * 2.8 + uTime * 0.9);
+          vWave = (waveA + waveB * 0.7 + waveC * 0.45) * 0.018;
+          transformed.y += vWave;
+
+          vec4 worldPosition = modelMatrix * vec4(transformed, 1.0);
+          vWorldPosition = worldPosition.xyz;
+          gl_Position = projectionMatrix * viewMatrix * worldPosition;
+        }
+      `,
+      fragmentShader: `
+        uniform float uTime;
+        uniform float uOpacity;
+        uniform vec3 uBaseColor;
+        uniform vec3 uHighlightColor;
+        varying vec3 vWorldPosition;
+        varying float vWave;
+
+        void main() {
+          vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
+          float fresnel = pow(1.0 - max(dot(viewDirection, vec3(0.0, 1.0, 0.0)), 0.0), 2.8);
+          float shimmer = 0.5 + 0.5 * sin((vWorldPosition.x + vWorldPosition.z) * 6.0 - uTime * 1.7);
+          vec3 color = mix(uBaseColor, uHighlightColor, clamp(fresnel * 0.9 + shimmer * 0.18, 0.0, 1.0));
+          float alpha = uOpacity * (0.62 + fresnel * 0.28 + abs(vWave) * 9.0);
+          gl_FragColor = vec4(color, alpha);
+        }
+      `,
+    });
+    const edgeMaterial = new THREE.LineBasicMaterial({
+      color: '#d4fbff',
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const proxyMesh = new THREE.Mesh(new THREE.BufferGeometry(), proxyMaterial);
+    const surfaceMesh = new THREE.Mesh(new THREE.BufferGeometry(), surfaceMaterial);
+    const edgeLoop = new THREE.LineLoop(new THREE.BufferGeometry(), edgeMaterial);
+    proxyMesh.renderOrder = 1;
+    surfaceMesh.renderOrder = 2;
+    edgeLoop.renderOrder = 3;
+    root.add(proxyMesh, surfaceMesh, edgeLoop);
+
+    return {
+      region,
+      proxyMesh,
+      surfaceMesh,
+      edgeLoop,
+      proxyMaterial,
+      surfaceMaterial,
+      edgeMaterial,
+    };
+  });
+
+  const rebuild = (rx: number, ry: number, rz: number) => {
+    root.rotation.set(rx, ry, rz);
+
+    for (const entry of regionEntries) {
+      entry.proxyMesh.geometry.dispose();
+      entry.surfaceMesh.geometry.dispose();
+      entry.edgeLoop.geometry.dispose();
+
+      const shapePoints = entry.region.polygon.map((point) => {
+        const localX = localBox.min.x + point.x * sizeX;
+        const localZ = localBox.min.z + point.z * sizeZ;
+        return new THREE.Vector2(localX, localZ);
+      });
+
+      const shape = new THREE.Shape(shapePoints);
+      const flatGeometry = new THREE.ShapeGeometry(shape);
+      const surfaceGeometry = flatGeometry.clone();
+      const shapedPosition = surfaceGeometry.getAttribute(
+        'position',
+      ) as import('three').BufferAttribute;
+
+      for (let index = 0; index < shapedPosition.count; index += 1) {
+        const localX = shapedPosition.getX(index);
+        const localZ = shapedPosition.getY(index);
+        const localY = solveHorizontalPlaneLocalY(localX, localZ, rx, ry, rz);
+        shapedPosition.setXYZ(index, localX, localY, localZ);
+      }
+
+      shapedPosition.needsUpdate = true;
+      surfaceGeometry.computeVertexNormals();
+
+      const proxyGeometry = surfaceGeometry.clone();
+      proxyGeometry.translate(0, -0.03, 0);
+
+      const outlinePositions = new Float32Array(shapePoints.length * 3);
+      shapePoints.forEach((shapePoint, index) => {
+        const localY = solveHorizontalPlaneLocalY(shapePoint.x, shapePoint.y, rx, ry, rz);
+        outlinePositions[index * 3] = shapePoint.x;
+        outlinePositions[index * 3 + 1] = localY + 0.01;
+        outlinePositions[index * 3 + 2] = shapePoint.y;
+      });
+      const edgeGeometry = new THREE.BufferGeometry();
+      edgeGeometry.setAttribute(
+        'position',
+        new THREE.BufferAttribute(outlinePositions, 3),
+      );
+
+      entry.proxyMesh.geometry = proxyGeometry;
+      entry.surfaceMesh.geometry = surfaceGeometry;
+      entry.edgeLoop.geometry = edgeGeometry;
+      flatGeometry.dispose();
+    }
+  };
+
+  rebuild(initialRotation.x, initialRotation.y, initialRotation.z);
 
   return {
-    startY: boundingBox?.min.y ?? 0,
-    endY: boundingBox?.max.y ?? 1,
+    root,
+    rebuild,
+    update(progress, calibration, timeSeconds) {
+      root.position.y = lerp(calibration.startY, calibration.endY, progress);
+
+      for (const entry of regionEntries) {
+        const start = entry.region.minProgress ?? 0;
+        const end = entry.region.maxProgress ?? 1;
+        const visibility = clamp(
+          (progress - start) / Math.max(end - start, 0.001),
+          0,
+          1,
+        );
+        entry.proxyMaterial.opacity = visibility * 0.14;
+        entry.surfaceMaterial.uniforms.uTime.value = timeSeconds;
+        entry.surfaceMaterial.uniforms.uOpacity.value = visibility * 0.74;
+        entry.edgeMaterial.opacity = visibility * 0.7;
+        entry.proxyMesh.visible = visibility > 0.001;
+        entry.surfaceMesh.visible = visibility > 0.001;
+        entry.edgeLoop.visible = visibility > 0.001;
+      }
+    },
+    dispose() {
+      scene.remove(root);
+      for (const entry of regionEntries) {
+        entry.proxyMesh.geometry.dispose();
+        entry.surfaceMesh.geometry.dispose();
+        entry.edgeLoop.geometry.dispose();
+        entry.proxyMaterial.dispose();
+        entry.surfaceMaterial.dispose();
+        entry.edgeMaterial.dispose();
+      }
+    },
   };
+}
+function postSplatFlood(
+  targetWindow: Window | null | undefined,
+  progress: number,
+  calibration: FloodCalibration | undefined,
+  rx: number,
+  ry: number,
+  rz: number,
+) {
+  if (!targetWindow) return;
+  const { rotationMatrix, inverseRotationMatrix } = buildEulerRotationMatrices(rx, ry, rz);
+
+  targetWindow.postMessage(
+    {
+      type: 'splat-flood',
+      progress,
+      startY: calibration?.startY,
+      endY: calibration?.endY,
+      minX: calibration?.minX,
+      maxX: calibration?.maxX,
+      minZ: calibration?.minZ,
+      maxZ: calibration?.maxZ,
+      rotationMatrix,
+      inverseRotationMatrix,
+    },
+    location.origin,
+  );
 }
 function sendSplatGesture(
   targetWindow: Window | null | undefined,
@@ -276,6 +507,8 @@ type SplatViewerProps = {
   splatUrl: string;
   renderer?: 'auto' | 'ply' | 'splat';
   floodProgress?: number;
+  floodCalibration?: FloodCalibration;
+  floodOverlay?: FloodOverlay;
   hotspots?: SceneHotspot[];
   onViewerStateChange?: (state: ViewerState) => void;
 };
@@ -285,6 +518,8 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
     splatUrl,
     renderer = 'auto',
     floodProgress = 0,
+    floodCalibration: propFloodCalibration,
+    floodOverlay,
     hotspots = [],
     onViewerStateChange,
   },
@@ -297,7 +532,8 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
   const controlsRef = useRef<OrbitControlsType | null>(null);
   const resetCameraRef = useRef<CameraSnapshot | null>(null);
   const floodShaderRef = useRef<FloodShader | null>(null);
-  const floodCalibrationRef = useRef<FloodCalibration | null>(null);
+  const floodOverlayRef = useRef<FloodOverlayController | null>(null);
+  const floodCalibrationRef = useRef<FloodVolume | null>(null);
   const localBBoxRef = useRef<{ min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } } | null>(null);
   const floodProgressRef = useRef(clamp(floodProgress, 0, 1));
   const pointsRef = useRef<import('three').Points | null>(null);
@@ -307,11 +543,12 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
   const [rotY, setRotY] = useState(0.640);
   const [rotZ, setRotZ] = useState(0.030);
   const [camElev, setCamElev] = useState(0.238);
-  const [camDist, setCamDist] = useState(0.359);
+  const [camDist, setCamDist] = useState(1.350);
   const [showSetup, setShowSetup] = useState(false);
   const [camPos, setCamPos] = useState<{ x: number; y: number; z: number } | null>(null);
   const camElevRef = useRef(0.238);
-  const camDistRef = useRef(0.359);
+  const camDistRef = useRef(1.350);
+  const rotRef = useRef({ x: -1.327, y: 0.640, z: 0.030 });
   const gestureStateRef = useRef<GestureState>({
     smoothedCenter: null,
     smoothedPinch: null,
@@ -341,7 +578,7 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
   const [handStatusDetail, setHandStatusDetail] = useState('Hand control off');
 
   const splatIframeSrc = useMemo(
-    () => `/splat/viewer.html?url=${encodeURIComponent(splatUrl)}&zoom=${camDistRef.current}`,
+    () => `/splat/viewer.html?url=${encodeURIComponent(splatUrl)}`,
     [splatUrl],
   );
 
@@ -366,24 +603,52 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
   useEffect(() => {
     floodProgressRef.current = clampedFloodProgress;
 
+    // Handle PLY renderer flood update
     const floodShader = floodShaderRef.current;
+    const floodOverlayController = floodOverlayRef.current;
     const floodCalibration = floodCalibrationRef.current;
-    if (!floodShader || !floodCalibration) return;
-
-    floodShader.uniforms.uFloodLevelY.value = lerp(
-      floodCalibration.startY,
-      floodCalibration.endY,
-      clampedFloodProgress,
-    );
-  }, [clampedFloodProgress]);
+    if (floodShader && floodCalibration) {
+      floodShader.uniforms.uFloodLevelY.value = lerp(
+        floodCalibration.startY,
+        floodCalibration.endY,
+        clampedFloodProgress,
+      );
+      floodShader.uniforms.uFloodBoundsMinXZ.value.set(
+        floodCalibration.minX,
+        floodCalibration.minZ,
+      );
+      floodShader.uniforms.uFloodBoundsMaxXZ.value.set(
+        floodCalibration.maxX,
+        floodCalibration.maxZ,
+      );
+      floodShader.uniforms.uFloodReach.value =
+        floodCalibration.maxEdgeDistance * clampedFloodProgress;
+      floodShader.uniforms.uFloodProgress.value = clampedFloodProgress;
+    }
+    if (floodOverlayController && floodCalibration) {
+      floodOverlayController.update(
+        clampedFloodProgress,
+        floodCalibration,
+        performance.now() / 1000,
+      );
+    }
+    // Handle splat iframe flood update
+    if (!usePlyRenderer) {
+      const splatWindow = iframeRef.current?.contentWindow;
+      postSplatFlood(
+        splatWindow,
+        clampedFloodProgress,
+        propFloodCalibration,
+        rotX,
+        rotY,
+        rotZ,
+      );
+    }
+  }, [clampedFloodProgress, usePlyRenderer, propFloodCalibration, rotX, rotY, rotZ]);
 
   useEffect(() => {
-    if (usePlyRenderer) return;
-    iframeRef.current?.contentWindow?.postMessage(
-      { type: 'splat-flood-progress', value: clampedFloodProgress },
-      '*',
-    );
-  }, [clampedFloodProgress, usePlyRenderer]);
+    rotRef.current = { x: rotX, y: rotY, z: rotZ };
+  }, [rotX, rotY, rotZ]);
 
   useEffect(() => {
     actionApiRef.current = noopViewerApi;
@@ -468,6 +733,7 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
     if (!canvasHost) return;
 
     floodShaderRef.current = null;
+    floodOverlayRef.current = null;
     floodCalibrationRef.current = null;
 
     let isDisposed = false;
@@ -548,13 +814,21 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
           ? { min: { x: rawBox.min.x, y: rawBox.min.y, z: rawBox.min.z }, max: { x: rawBox.max.x, y: rawBox.max.y, z: rawBox.max.z } }
           : { min: { x: 0, y: 0, z: 0 }, max: { x: 1, y: 1, z: 1 } };
         localBBoxRef.current = localBox;
-        const floodCalibration = computeWorldYBounds(localBox, rotX, rotY, rotZ);
+        const { x: currentRotX, y: currentRotY, z: currentRotZ } = rotRef.current;
+        const floodCalibration = computeFloodVolumeFromLocalBox(
+          localBox,
+          currentRotX,
+          currentRotY,
+          currentRotZ,
+          propFloodCalibration,
+        );
         floodCalibrationRef.current = floodCalibration;
         const initialFloodLevelY = lerp(
           floodCalibration.startY,
           floodCalibration.endY,
           floodProgressRef.current,
         );
+        const initialFloodReach = floodCalibration.maxEdgeDistance * floodProgressRef.current;
 
         const boundingSphere =
           loadedGeometry.boundingSphere ?? new THREE.Sphere(new THREE.Vector3(), 1);
@@ -575,18 +849,26 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
         });
         pointsMaterial.onBeforeCompile = shader => {
           shader.uniforms.uFloodLevelY = { value: initialFloodLevelY };
-          shader.uniforms.uFloodBandWidth = { value: 0.018 };
-          shader.uniforms.uFloodEdgeSoftness = { value: 0.012 };
-          shader.uniforms.uFloodTintStrength = { value: 0.58 };
+          shader.uniforms.uFloodBandWidth = { value: 0.024 };
+          shader.uniforms.uFloodEdgeSoftness = { value: 0.02 };
+          shader.uniforms.uFloodTintStrength = { value: 0.16 };
           shader.uniforms.uFloodColor = { value: new THREE.Color('#167d96') };
+          shader.uniforms.uFloodBoundsMinXZ = {
+            value: new THREE.Vector2(floodCalibration.minX, floodCalibration.minZ),
+          };
+          shader.uniforms.uFloodBoundsMaxXZ = {
+            value: new THREE.Vector2(floodCalibration.maxX, floodCalibration.maxZ),
+          };
+          shader.uniforms.uFloodReach = { value: initialFloodReach };
+          shader.uniforms.uFloodProgress = { value: floodProgressRef.current };
           shader.uniforms.uTime = { value: performance.now() / 1000 };
 
           shader.vertexShader = `
-            varying float vPointY;
+            varying vec3 vWorldPos;
           ${shader.vertexShader}`.replace(
             '#include <begin_vertex>',
             `#include <begin_vertex>
-            vPointY = (modelMatrix * vec4(position, 1.0)).y;`,
+            vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;`,
           );
 
           shader.fragmentShader = `
@@ -595,29 +877,37 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
             uniform float uFloodEdgeSoftness;
             uniform float uFloodTintStrength;
             uniform vec3 uFloodColor;
+            uniform vec2 uFloodBoundsMinXZ;
+            uniform vec2 uFloodBoundsMaxXZ;
+            uniform float uFloodReach;
+            uniform float uFloodProgress;
             uniform float uTime;
-            varying float vPointY;
+            varying vec3 vWorldPos;
           ${shader.fragmentShader}`.replace(
             '#include <color_fragment>',
             `#include <color_fragment>
-            float submerged = smoothstep(
+            float heightSubmerged = smoothstep(
               uFloodLevelY + uFloodEdgeSoftness,
               uFloodLevelY - uFloodEdgeSoftness,
-              vPointY
+              vWorldPos.y
             );
 
-            float band = 1.0 - smoothstep(
+            float waterlineBand = 1.0 - smoothstep(
               0.0,
               uFloodBandWidth,
-              abs(vPointY - uFloodLevelY)
+              abs(vWorldPos.y - uFloodLevelY)
             );
 
-            float pulse = 0.88 + 0.12 * sin(uTime * 1.6 + vPointY * 24.0);
+            float band = waterlineBand;
+
+            float pulse = 0.88 + 0.12 * sin(
+              uTime * 1.6 + vWorldPos.x * 2.2 + vWorldPos.z * 1.8
+            );
 
             diffuseColor.rgb = mix(
               diffuseColor.rgb,
               uFloodColor,
-              submerged * uFloodTintStrength
+              heightSubmerged * uFloodTintStrength
             );
             diffuseColor.rgb += band * pulse * vec3(0.05, 0.10, 0.13);`,
           );
@@ -628,8 +918,25 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
         materialToDispose = pointsMaterial;
 
         const points = new THREE.Points(loadedGeometry, pointsMaterial);
+        points.rotation.set(currentRotX, currentRotY, currentRotZ);
         pointsRef.current = points;
         scene.add(points);
+
+        if (floodOverlay?.regions.length) {
+          const floodOverlayController = createFloodOverlayController(
+            THREE,
+            scene,
+            localBox,
+            floodOverlay,
+            rotRef.current,
+          );
+          floodOverlayController.update(
+            floodProgressRef.current,
+            floodCalibration,
+            performance.now() / 1000,
+          );
+          floodOverlayRef.current = floodOverlayController;
+        }
 
         const readPose = (): CameraPose => ({
           position: [camera.position.x, camera.position.y, camera.position.z],
@@ -789,6 +1096,7 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
           }
 
           const floodShader = floodShaderRef.current;
+          const floodOverlayController = floodOverlayRef.current;
           const activeFloodCalibration = floodCalibrationRef.current;
           if (floodShader && activeFloodCalibration) {
             floodShader.uniforms.uTime.value = performance.now() / 1000;
@@ -797,8 +1105,25 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
               activeFloodCalibration.endY,
               floodProgressRef.current,
             );
+            floodShader.uniforms.uFloodBoundsMinXZ.value.set(
+              activeFloodCalibration.minX,
+              activeFloodCalibration.minZ,
+            );
+            floodShader.uniforms.uFloodBoundsMaxXZ.value.set(
+              activeFloodCalibration.maxX,
+              activeFloodCalibration.maxZ,
+            );
+            floodShader.uniforms.uFloodReach.value =
+              activeFloodCalibration.maxEdgeDistance * floodProgressRef.current;
+            floodShader.uniforms.uFloodProgress.value = floodProgressRef.current;
           }
-
+          if (floodOverlayController && activeFloodCalibration) {
+            floodOverlayController.update(
+              floodProgressRef.current,
+              activeFloodCalibration,
+              performance.now() / 1000,
+            );
+          }
           if (keysDown.size > 0) {
             const speed = radius * 0.014;
             const forward = camera.getWorldDirection(new THREE.Vector3());
@@ -847,6 +1172,8 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
       controlsRef.current = null;
       resetCameraRef.current = null;
       floodShaderRef.current = null;
+      floodOverlayRef.current?.dispose();
+      floodOverlayRef.current = null;
       floodCalibrationRef.current = null;
       geometryToDispose?.dispose();
       materialToDispose?.dispose();
@@ -854,7 +1181,7 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
       actionApiRef.current = noopViewerApi;
       canvasHost.replaceChildren();
     };
-  }, [hotspotMap, splatUrl, usePlyRenderer]);
+  }, [floodOverlay, hotspotMap, propFloodCalibration, splatUrl, usePlyRenderer]);
 
   useEffect(() => {
     if (!handControlEnabled || viewerState !== 'ready') return;
@@ -1339,27 +1666,10 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
     };
   }, [handControlEnabled, usePlyRenderer, viewerState]);
 
-  const zoomFromIframe = useRef(false);
-  const zoomInitialized = useRef(false);
-
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (e.data?.type === 'splat-camera-pos') {
         setCamPos({ x: e.data.x, y: e.data.y, z: e.data.z });
-      }
-      if (e.data?.type === 'splat-zoom') {
-        if (!zoomInitialized.current) {
-          // First ping from iframe — push our desired initial zoom back
-          zoomInitialized.current = true;
-          iframeRef.current?.contentWindow?.postMessage(
-            { type: 'splat-set-zoom', value: camDistRef.current },
-            '*',
-          );
-        } else {
-          zoomFromIframe.current = true;
-          setCamDist(e.data.value);
-          zoomFromIframe.current = false;
-        }
       }
     };
     window.addEventListener('message', handler);
@@ -1379,19 +1689,35 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
       initialRotApplied.current = false;
       return;
     }
-    // Splat iframe manages its own camera via COLMAP trajectory — skip rotation gestures
-    initialRotApplied.current = true;
-  }, [usePlyRenderer]);
+
+    if (!initialRotApplied.current && viewerState === 'ready') {
+      initialRotApplied.current = true;
+      applySplatRotation(rotX, rotY, rotZ);
+    }
+  }, [usePlyRenderer, viewerState, rotX, rotY, rotZ]);
 
   useEffect(() => {
-    if (usePlyRenderer && pointsRef.current) {
-      pointsRef.current.rotation.set(rotX, rotY, rotZ);
-      const lb = localBBoxRef.current;
-      if (lb) floodCalibrationRef.current = computeWorldYBounds(lb, rotX, rotY, rotZ);
+    if (usePlyRenderer) {
+      if (pointsRef.current) {
+        pointsRef.current.rotation.set(rotX, rotY, rotZ);
+        const lb = localBBoxRef.current;
+        if (lb) {
+          floodCalibrationRef.current = computeFloodVolumeFromLocalBox(
+            lb,
+            rotX,
+            rotY,
+            rotZ,
+            propFloodCalibration,
+          );
+        }
+      }
+      floodOverlayRef.current?.rebuild(rotX, rotY, rotZ);
+    } else if (initialRotApplied.current) {
+      applySplatRotation(rotX, rotY, rotZ);
     }
-  }, [rotX, rotY, rotZ, usePlyRenderer]);
+  }, [propFloodCalibration, rotX, rotY, rotZ, usePlyRenderer]);
 
-  const prevCamRef = useRef({ elev: 0.238, dist: 0.359 });
+  const prevCamRef = useRef({ elev: 0.238, dist: 1.350 });
 
   useEffect(() => {
     if (usePlyRenderer) {
@@ -1400,17 +1726,17 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
       fitCameraRef.current?.();
     } else {
       const dElev = camElev - prevCamRef.current.elev;
+      const dDist = camDist - prevCamRef.current.dist;
       prevCamRef.current = { elev: camElev, dist: camDist };
       if (Math.abs(dElev) > 0.001) {
         sendSplatGesture(iframeRef.current?.contentWindow, {
           type: 'splat-hand-control', action: 'orbit', dx: 0, dy: -dElev * 0.8,
         });
       }
-      if (!zoomFromIframe.current) {
-        iframeRef.current?.contentWindow?.postMessage(
-          { type: 'splat-set-zoom', value: camDist },
-          '*',
-        );
+      if (Math.abs(dDist) > 0.001) {
+        sendSplatGesture(iframeRef.current?.contentWindow, {
+          type: 'splat-hand-control', action: 'zoom', delta: dDist * 0.4,
+        });
       }
     }
   }, [camElev, camDist, usePlyRenderer]);
@@ -1433,6 +1759,16 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
         <iframe
           ref={iframeRef}
           src={splatIframeSrc}
+          onLoad={() => {
+            postSplatFlood(
+              iframeRef.current?.contentWindow,
+              floodProgressRef.current,
+              propFloodCalibration,
+              rotRef.current.x,
+              rotRef.current.y,
+              rotRef.current.z,
+            );
+          }}
           style={{ border: 'none', width: '100%', height: '100%', display: 'block' }}
           title="3D Gaussian Splat Viewer"
         />
@@ -1445,41 +1781,17 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
           zIndex: 20,
           display: 'flex',
           flexDirection: 'column',
-          gap: 10,
+          gap: 8,
           alignItems: 'flex-start',
         }}
       >
-        <button
-          type="button"
-          onClick={() => setHandControlEnabled((current) => !current)}
-          disabled={viewerState !== 'ready'}
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: '11px',
-            letterSpacing: '0.16em',
-            textTransform: 'uppercase',
-            color: handControlEnabled ? '#031018' : 'var(--text-hi)',
-            background: handControlEnabled ? 'var(--accent)' : 'rgba(3, 12, 22, 0.82)',
-            border: `1px solid ${
-              handControlEnabled ? 'rgba(0, 212, 180, 0.95)' : 'rgba(0, 212, 180, 0.28)'
-            }`,
-            padding: '10px 14px',
-            cursor: viewerState === 'ready' ? 'pointer' : 'default',
-            opacity: viewerState === 'ready' ? 1 : 0.55,
-            boxShadow: handControlEnabled
-              ? '0 12px 24px rgba(0, 212, 180, 0.18)'
-              : 'none',
-          }}
-        >
-          {handControlEnabled ? 'Disable Hand Control' : 'Enable Hand Control'}
-        </button>
-
         <div
           style={{
             display: 'grid',
-            gap: 8,
-            minWidth: 220,
-            padding: '10px 12px',
+            gap: 6,
+            minWidth: 200,
+            maxWidth: 'min(280px, calc(100vw - 36px))',
+            padding: '8px 10px',
             background: 'rgba(3, 12, 22, 0.82)',
             border: '1px solid rgba(0, 212, 180, 0.16)',
             backdropFilter: 'blur(12px)',
@@ -1490,52 +1802,97 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              fontFamily: 'var(--font-mono)',
-              fontSize: '10px',
-              letterSpacing: '0.18em',
-              textTransform: 'uppercase',
-              color:
-                handStatus === 'tracking'
-                  ? 'var(--accent)'
-                  : handStatus === 'error' || handStatus === 'permission-denied'
-                    ? '#fca5a5'
-                    : 'var(--text-mid)',
             }}
           >
-            <span
+            <div
               style={{
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                background:
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                flex: 1,
+                minWidth: 0,
+                fontFamily: 'var(--font-mono)',
+                fontSize: '10px',
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                color:
                   handStatus === 'tracking'
                     ? 'var(--accent)'
                     : handStatus === 'error' || handStatus === 'permission-denied'
-                      ? '#ef4444'
-                      : 'rgba(108, 180, 204, 0.7)',
-                boxShadow:
-                  handStatus === 'tracking'
-                    ? '0 0 12px rgba(0, 212, 180, 0.65)'
-                    : 'none',
+                      ? '#fca5a5'
+                      : 'var(--text-mid)',
               }}
-            />
-            {handStatus === 'inactive' ? 'Hand Control Off' : handStatus.replace('-', ' ')}
+            >
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  flexShrink: 0,
+                  borderRadius: '50%',
+                  background:
+                    handStatus === 'tracking'
+                      ? 'var(--accent)'
+                      : handStatus === 'error' || handStatus === 'permission-denied'
+                        ? '#ef4444'
+                        : 'rgba(108, 180, 204, 0.7)',
+                  boxShadow:
+                    handStatus === 'tracking'
+                      ? '0 0 10px rgba(0, 212, 180, 0.65)'
+                      : 'none',
+                }}
+              />
+              <span style={{ whiteSpace: 'nowrap' }}>Hand</span>
+              <span style={{ opacity: 0.45, padding: '0 2px' }}>·</span>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {handStatusShortLabel(handStatus)}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setHandControlEnabled((current) => !current)}
+              disabled={viewerState !== 'ready'}
+              style={{
+                flexShrink: 0,
+                fontFamily: 'var(--font-mono)',
+                fontSize: '10px',
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                color: handControlEnabled ? '#031018' : 'var(--text-hi)',
+                background: handControlEnabled ? 'var(--accent)' : 'rgba(4, 19, 31, 0.92)',
+                border: `1px solid ${
+                  handControlEnabled ? 'rgba(0, 212, 180, 0.95)' : 'rgba(0, 212, 180, 0.28)'
+                }`,
+                padding: '6px 10px',
+                cursor: viewerState === 'ready' ? 'pointer' : 'default',
+                opacity: viewerState === 'ready' ? 1 : 0.55,
+                boxShadow: handControlEnabled
+                  ? '0 8px 18px rgba(0, 212, 180, 0.14)'
+                  : 'none',
+              }}
+            >
+              {handControlEnabled ? 'Off' : 'On'}
+            </button>
           </div>
-          <div
-            style={{
-              fontFamily: 'var(--font-body)',
-              fontSize: '12px',
-              lineHeight: 1.45,
-              color: 'var(--text-mid)',
-            }}
-          >
-            {handStatusDetail}
-          </div>
+          {handControlEnabled ||
+          handStatus === 'error' ||
+          handStatus === 'permission-denied' ? (
+            <div
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: '11px',
+                lineHeight: 1.4,
+                color: 'var(--text-mid)',
+              }}
+            >
+              {handStatusDetail}
+            </div>
+          ) : null}
           {handControlEnabled ? (
             <div
               style={{
                 position: 'relative',
-                width: 220,
+                width: '100%',
+                maxWidth: 220,
                 aspectRatio: '4 / 3',
                 overflow: 'hidden',
                 border: '1px solid rgba(0, 212, 180, 0.2)',
@@ -1592,10 +1949,10 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
             <div
               style={{
                 display: 'grid',
-                gap: 4,
+                gap: 2,
                 fontFamily: 'var(--font-mono)',
-                fontSize: '10px',
-                letterSpacing: '0.08em',
+                fontSize: '9px',
+                letterSpacing: '0.06em',
                 textTransform: 'uppercase',
                 color: 'rgba(173, 224, 235, 0.74)',
               }}
@@ -1677,7 +2034,7 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
               ['Rot Y', rotY, setRotY, -Math.PI, Math.PI],
               ['Rot Z', rotZ, setRotZ, -Math.PI, Math.PI],
               ['Cam Elev', camElev, setCamElev, -1, 1.5],
-              ['Cam Dist', camDist, setCamDist, -1.5, 3],
+              ['Cam Dist', camDist, setCamDist, 0.5, 3],
             ] as const).map(([label, value, setter, min, max]) => (
               <label key={label} style={{ display: 'grid', gap: 4 }}>
                 <span
@@ -1713,7 +2070,7 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
                 setRotY(-0.122);
                 setRotZ(0.320);
                 setCamElev(0.238);
-                setCamDist(0.359);
+                setCamDist(1.350);
               }}
               style={{
                 marginTop: 4,

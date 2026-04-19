@@ -8,9 +8,11 @@ export default function Home() {
       <header className="masthead">
         <div>
           <div className="eyebrow">Spatiotemporal Oceanographic Growth Simulator</div>
-          <h1 className="dashboard-title">Location  Dashboard</h1>
+          <h1 className="dashboard-title">Location Dashboard</h1>
+          <p className="dashboard-copy">
+            Launch scene demos and turn each Sojs view into a research-ready stakeholder brief.
+          </p>
         </div>
-   
       </header>
 
       <section className="dashboard-grid" aria-label="Saved locations">
@@ -28,9 +30,13 @@ export default function Home() {
             <div className="location-card-body">
               <div>
                 <h2 className="location-name">{location.name}</h2>
-                <p className="location-region">{location.region}</p>
+                {location.region.trim() ? (
+                  <p className="location-region">{location.region}</p>
+                ) : null}
               </div>
-              <p className="location-description">{location.description}</p>
+              {location.description.trim() ? (
+                <p className="location-description">{location.description}</p>
+              ) : null}
             </div>
 
             <div className="location-card-footer">
