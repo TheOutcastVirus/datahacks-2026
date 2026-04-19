@@ -1,12 +1,10 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import type { MouseEventHandler } from 'react';
+import type { ChangeEvent, MouseEventHandler } from 'react';
 
 import type { LocationRecord, ScenarioRecord, SceneHotspot } from '@/lib/locations';
-import {
-  parseVoiceIntent,
-} from '@/lib/scene-command-catalog';
+import { parseVoiceIntent } from '@/lib/scene-command-catalog';
 import {
   buildCompareResponse,
   buildCurrentViewResponse,
@@ -18,6 +16,7 @@ import {
   buildUnknownResponse,
 } from '@/lib/voice-responses';
 import type { ViewerCommandApi, ViewerState } from '@/lib/viewer-types';
+import type { VoiceAgentAction, VoiceAgentTrace } from '@/lib/voice-agent/types';
 
 import VoiceAssistantBar from '@/components/VoiceAssistantBar';
 import VoiceCaptionPanel from '@/components/VoiceCaptionPanel';
@@ -117,53 +116,124 @@ export default function LocationExperience({ location }: { location: LocationRec
     await speak(text);
   };
 
-  const getAIResponse = async (
+  const applyVoiceActions = async (actions: VoiceAgentAction[]) => {
+    for (const action of actions) {
+      switch (action.type) {
+        case 'go_to_hotspot': {
+          const hotspot =
+            hotspots.find((item) => item.id === action.hotspotId) ?? activeHotspot;
+          await viewerRef.current?.goToHotspot(action.hotspotId);
+          setActiveHotspotId(hotspot.id);
+          break;
+        }
+        case 'set_scenario': {
+          const scenario =
+            scenarios.find((item) => item.id === action.scenarioId) ?? activeScenario;
+          viewerRef.current?.setScenario(scenario.id);
+          setCompareScenarioIds(null);
+          setActiveScenarioId(scenario.id);
+          setRiseMeters(scenario.riseMeters);
+          break;
+        }
+        case 'compare_scenarios': {
+          const left =
+            scenarios.find((item) => item.id === action.leftScenarioId) ?? scenarios[0];
+          const right =
+            scenarios.find((item) => item.id === action.rightScenarioId) ??
+            scenarios[scenarios.length - 1];
+          viewerRef.current?.compareScenario(left.id, right.id);
+          setCompareScenarioIds([left.id, right.id]);
+          setActiveScenarioId(right.id);
+          setRiseMeters(right.riseMeters);
+          break;
+        }
+        case 'move_camera':
+          viewerRef.current?.moveCamera(action.direction);
+          break;
+        case 'zoom_camera':
+          viewerRef.current?.zoomCamera(action.direction);
+          break;
+        case 'reset_camera':
+          viewerRef.current?.resetCamera();
+          setActiveHotspotId(normalizedLocation.defaultHotspotId);
+          break;
+      }
+    }
+  };
+
+  const getHarnessResponse = async (
     transcript: string,
-  ): Promise<{ text: string | null; error: string | null }> => {
+  ): Promise<{
+    speech: string | null;
+    caption: string | null;
+    actions: VoiceAgentAction[];
+    traces: VoiceAgentTrace | null;
+    error: string | null;
+  }> => {
     try {
-      appendVoiceLog(`Sending transcript to NVIDIA NIM: "${transcript}"`);
-      const context = [
-        `Location: ${normalizedLocation.name}`,
-        `Active hotspot: ${activeHotspot.name} — ${activeHotspot.description}`,
-        `Active scenario: ${activeScenario.label} (${activeScenario.year}), +${activeScenario.riseMeters}m sea level rise`,
-        `Narration: ${activeScenario.narration}`,
-      ].join('\n');
+      appendVoiceLog(`Sending transcript to voice harness: "${transcript}"`);
       const res = await fetch('/api/voice/respond', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript, context }),
+        body: JSON.stringify({
+          transcript,
+          locationSlug: normalizedLocation.slug,
+          sceneState: {
+            activeHotspotId,
+            activeScenarioId,
+            compareScenarioIds,
+            riseMeters,
+            viewerState,
+          },
+        }),
       });
       const data = (await res.json().catch(() => null)) as
-        | { text?: string; error?: string }
+        | {
+            speech?: string;
+            caption?: string;
+            actions?: VoiceAgentAction[];
+            traces?: VoiceAgentTrace;
+            error?: string;
+          }
         | null;
       if (!res.ok) {
-        const errorMessage = data?.error ?? 'NVIDIA NIM request failed.';
-        appendVoiceLog(`NVIDIA NIM error: ${errorMessage}`, 'error');
-        return { text: null, error: errorMessage };
+        const errorMessage = data?.error ?? 'Voice harness request failed.';
+        appendVoiceLog(`Voice harness error: ${errorMessage}`, 'error');
+        return { speech: null, caption: null, actions: [], traces: null, error: errorMessage };
       }
 
-      if (data?.text) {
-        appendVoiceLog(`NVIDIA NIM replied with ${data.text.length} characters.`);
+      if (data?.speech || data?.caption) {
+        appendVoiceLog(
+          `Voice harness returned ${data?.actions?.length ?? 0} action(s).`,
+        );
       } else {
-        appendVoiceLog('NVIDIA NIM returned an empty reply.', 'error');
+        appendVoiceLog('Voice harness returned an empty reply.', 'error');
       }
-      return { text: data?.text ?? null, error: null };
+      return {
+        speech: data?.speech ?? null,
+        caption: data?.caption ?? null,
+        actions: data?.actions ?? [],
+        traces: data?.traces ?? null,
+        error: null,
+      };
     } catch (error) {
       const errorMessage =
-        error instanceof Error ? error.message : 'NVIDIA NIM request failed.';
-      appendVoiceLog(`NVIDIA NIM request threw: ${errorMessage}`, 'error');
+        error instanceof Error ? error.message : 'Voice harness request failed.';
+      appendVoiceLog(`Voice harness request threw: ${errorMessage}`, 'error');
       return {
-        text: null,
+        speech: null,
+        caption: null,
+        actions: [],
+        traces: null,
         error: errorMessage,
       };
     }
   };
 
-  const runVoiceCommand = async (rawTranscript: string) => {
-    setAiError(null);
-    appendVoiceLog(`Mic release produced transcript: "${rawTranscript}"`);
+  const runFallbackVoiceCommand = async (rawTranscript: string) => {
+    appendVoiceLog(`Falling back to deterministic parser for: "${rawTranscript}"`);
     const intent = parseVoiceIntent(normalizedLocation, rawTranscript);
-    appendVoiceLog(`Parsed voice intent: ${intent.type}`);
+    appendVoiceLog(`Parsed fallback intent: ${intent.type}`);
     setCommandLabel(describeIntent(intent.type));
 
     if (
@@ -171,7 +241,7 @@ export default function LocationExperience({ location }: { location: LocationRec
       ['go_to_hotspot', 'camera_move', 'camera_zoom', 'reset_camera'].includes(intent.type)
     ) {
       const loadingCopy = 'The scene is still loading. Try that command again in a moment.';
-      appendVoiceLog('Viewer is still loading; command execution deferred.', 'error');
+      appendVoiceLog('Viewer is still loading; fallback command execution deferred.', 'error');
       setResponse(loadingCopy);
       await speakIfEnabled(loadingCopy);
       return;
@@ -280,19 +350,32 @@ export default function LocationExperience({ location }: { location: LocationRec
         return;
       }
       case 'unknown': {
-        const { text: aiText, error } = await getAIResponse(rawTranscript);
-        if (aiText) {
-          setResponse(aiText);
-          await speakIfEnabled(aiText);
-        } else {
-          setAiError(error);
-          const nextResponse = buildUnknownResponse();
-          setResponse(nextResponse.caption);
-          await speakIfEnabled(nextResponse.speech);
-        }
+        const nextResponse = buildUnknownResponse();
+        setResponse(nextResponse.caption);
+        await speakIfEnabled(nextResponse.speech);
         return;
       }
     }
+  };
+
+  const runVoiceCommand = async (rawTranscript: string) => {
+    setAiError(null);
+    appendVoiceLog(`Mic release produced transcript: "${rawTranscript}"`);
+    const { speech, caption, actions, traces, error } = await getHarnessResponse(rawTranscript);
+    if (!speech || !caption) {
+      setAiError(error);
+      await runFallbackVoiceCommand(rawTranscript);
+      return;
+    }
+
+    setCommandLabel(
+      actions[0]?.type ? describeIntent(actions[0].type) : traces?.toolCalls[0]?.toolName
+        ? describeIntent(traces.toolCalls[0].toolName)
+        : 'Voice Agent',
+    );
+    await applyVoiceActions(actions);
+    setResponse(caption);
+    await speakIfEnabled(speech);
   };
 
   const stopMicRecording = async () => {
@@ -359,7 +442,7 @@ export default function LocationExperience({ location }: { location: LocationRec
       : activeScenario;
   const compareScenarios = compareScenarioIds
     ? compareScenarioIds
-        .map((id) => scenarios.find((scenario) => scenario.id === id))
+        .map((id: string) => scenarios.find((scenario) => scenario.id === id))
         .filter(Boolean) as ScenarioRecord[]
     : [];
   const isOutputSplat = normalizedLocation.slug === 'output-splat';
@@ -434,7 +517,7 @@ export default function LocationExperience({ location }: { location: LocationRec
             max={MAX_VISUALIZED_RISE_METERS}
             step={0.01}
             value={riseMeters}
-            onChange={(event) => {
+            onChange={(event: ChangeEvent<HTMLInputElement>) => {
               setRiseMeters(Number.parseFloat(event.currentTarget.value));
             }}
             aria-label="Water level"
