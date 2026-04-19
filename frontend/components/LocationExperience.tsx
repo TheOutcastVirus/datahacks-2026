@@ -24,7 +24,7 @@ import SeaLevelTimeline from '@/components/SeaLevelTimeline';
 import { useAssemblyAISpeechToText } from '@/hooks/useAssemblyAISpeechToText';
 import { useVoicePlayback } from '@/hooks/useVoicePlayback';
 
-const MAX_VISUALIZED_RISE_METERS = 2.0;
+const MAX_VISUALIZED_RISE_METERS = 26.0;
 
 function describeIntent(intent: string) {
   return intent
