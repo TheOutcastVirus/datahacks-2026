@@ -74,7 +74,9 @@ const HAND_LANDMARKER_WASM_URL =
   'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.34/wasm';
 const PALM_INDICES = [0, 5, 9, 13, 17] as const;
 const GESTURE_SMOOTHING = 0.35;
-const PAN_DEADZONE = 0.0024;
+const PAN_DEADZONE = 0.16;
+const PAN_NORMALIZATION_FLOOR = 0.085;
+const PAN_GAIN = 0.018;
 const SCALE_ZOOM_DEADZONE = 0.0025;
 const FLOOD_CALIBRATION_BY_URL: Record<string, FloodCalibration> = {
   '/Cabbage-mvs_1012_04.ply': {
@@ -1001,7 +1003,7 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
 
         updateHandStatus(
           'no-hand',
-          'Show your hand. Point thumb left/right to move.',
+          'Show your hand. Move it left/right to pan.',
         );
 
         const step = () => {
@@ -1036,7 +1038,7 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
             resetGestureState();
             updateHandStatus(
               'no-hand',
-              'Show your hand. Point thumb left/right to move.',
+              'Show your hand. Move it left/right to pan.',
             );
             animationFrameId = window.requestAnimationFrame(step);
             return;
@@ -1086,55 +1088,27 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
               ? handScale
               : gestureStateRef.current.smoothedHandScale + (handScale - gestureStateRef.current.smoothedHandScale) * GESTURE_SMOOTHING;
 
-          const pinchDist = Math.hypot(
-            landmarks[4].x - landmarks[8].x,
-            landmarks[4].y - landmarks[8].y,
+          // Thumb direction: angle from wrist (0) to thumb tip (4)
+          // Video is mirrored on display, so raw-right = screen-left and vice versa
+          const thumbAngle = Math.atan2(
+            landmarks[4].y - landmarks[0].y,
+            landmarks[4].x - landmarks[0].x,
           );
-          const smoothedPinch =
-            gestureStateRef.current.smoothedHandScale === null
-              ? pinchDist
-              : gestureStateRef.current.smoothedHandScale + (pinchDist - gestureStateRef.current.smoothedHandScale) * GESTURE_SMOOTHING;
-
-          // thumb direction: tip (4) relative to wrist (0), mirrored so sign is inverted
-          const thumbDeltaX = landmarks[4].x - landmarks[0].x;
-          const thumbThreshold = handScale * 0.28;
-          const thumbPointsLeft = thumbDeltaX > thumbThreshold;
-          const thumbPointsRight = thumbDeltaX < -thumbThreshold;
-
-          // Neutral zone: [0.08, 0.16]. Outside it, zoom proportionally each frame.
-          const ZOOM_NEAR = 0.08;  // closer than this = zoom in
-          const ZOOM_FAR  = 0.16; // farther than this = zoom out
-          const zoomSpeed = smoothedPinch < ZOOM_NEAR
-            ? (smoothedPinch - ZOOM_NEAR) * 600   // negative = zoom in
-            : smoothedPinch > ZOOM_FAR
-              ? (smoothedPinch - ZOOM_FAR) * 600  // positive = zoom out
-              : 0;
+          const thumbCos = Math.cos(thumbAngle);
+          // thumbCos > 0.5 = thumb pointing raw-right = screen-left → ArrowLeft
+          // thumbCos < -0.5 = thumb pointing raw-left = screen-right → ArrowRight
+          const wantedKey = thumbCos > 0.5 ? 'ArrowLeft' : thumbCos < -0.5 ? 'ArrowRight' : null;
 
           gestureStateRef.current = {
             smoothedCenter,
-            smoothedHandScale: smoothedPinch,
-            peaceZoomActive: zoomSpeed !== 0,
-            activeGesture: zoomSpeed !== 0 ? 'zoom' : 'pan',
+            smoothedHandScale,
+            peaceZoomActive: false,
+            activeGesture: 'pan',
           };
 
           const trackedHandLabel = describeTrackedHand(trackedHand);
 
-          if (zoomSpeed !== 0) {
-            if (thumbKeyRef.current) {
-              window.dispatchEvent(new KeyboardEvent('keyup', { code: thumbKeyRef.current, bubbles: true }));
-              iframeRef.current?.contentWindow?.postMessage({ type: 'splat-keyup', code: thumbKeyRef.current }, '*');
-              thumbKeyRef.current = null;
-            }
-            const target = usePlyRenderer
-              ? (canvasHostRef.current ?? document.body)
-              : (iframeRef.current ?? document.body);
-            target.dispatchEvent(
-              new WheelEvent('wheel', { deltaY: zoomSpeed, bubbles: true, cancelable: true }),
-            );
-            updateHandStatus('tracking', `Tracking ${trackedHandLabel}. ${zoomSpeed < 0 ? 'Zooming in' : 'Zooming out'}.`);
-          } else {
-            // Thumb direction → simulate arrow key hold
-            const wantedKey = thumbPointsLeft ? 'ArrowLeft' : thumbPointsRight ? 'ArrowRight' : null;
+          {
             const heldKey = thumbKeyRef.current;
             if (heldKey !== wantedKey) {
               if (heldKey) {
@@ -1150,8 +1124,8 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
             updateHandStatus(
               'tracking',
               wantedKey
-                ? `Tracking ${trackedHandLabel}. Thumb ${thumbPointsLeft ? '←' : '→'}: moving.`
-                : `Tracking ${trackedHandLabel}. Thumb left/right: move. Pinch: zoom.`,
+                ? `Tracking ${trackedHandLabel}. Thumb ${wantedKey === 'ArrowLeft' ? '←' : '→'}: moving.`
+                : `Tracking ${trackedHandLabel}. Point thumb left or right to move.`,
             );
           }
 
@@ -1442,8 +1416,8 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
                 color: 'rgba(173, 224, 235, 0.74)',
               }}
             >
-              <div>Thumb left/right: Move</div>
-              <div>Pinch thumb+index: Zoom</div>
+              <div>Move hand left/right: Pan</div>
+              <div>Works with either hand</div>
             </div>
           ) : null}
         </div>
