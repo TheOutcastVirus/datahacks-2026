@@ -10,9 +10,7 @@ export default function Home() {
           <div className="eyebrow">Sojs</div>
           <h1 className="dashboard-title">Location Dashboard</h1>
         </div>
-        <p className="dashboard-copy">
-          Save each render as its own location and open it from a dedicated route.
-        </p>
+   
       </header>
 
       <section className="dashboard-grid" aria-label="Saved locations">

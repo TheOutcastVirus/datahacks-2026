@@ -273,6 +273,18 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
   const floodShaderRef = useRef<FloodShader | null>(null);
   const floodCalibrationRef = useRef<FloodCalibration | null>(null);
   const floodProgressRef = useRef(clamp(floodProgress, 0, 1));
+  const pointsRef = useRef<import('three').Points | null>(null);
+  const fitCameraRef = useRef<(() => void) | null>(null);
+
+  const [rotX, setRotX] = useState(-1.327);
+  const [rotY, setRotY] = useState(0.640);
+  const [rotZ, setRotZ] = useState(0.030);
+  const [camElev, setCamElev] = useState(0.238);
+  const [camDist, setCamDist] = useState(1.350);
+  const [showSetup, setShowSetup] = useState(false);
+  const [camPos, setCamPos] = useState<{ x: number; y: number; z: number } | null>(null);
+  const camElevRef = useRef(0.238);
+  const camDistRef = useRef(1.350);
   const gestureStateRef = useRef<GestureState>({
     smoothedCenter: null,
     smoothedPinch: null,
@@ -579,6 +591,7 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
         materialToDispose = pointsMaterial;
 
         const points = new THREE.Points(loadedGeometry, pointsMaterial);
+        pointsRef.current = points;
         scene.add(points);
 
         const readPose = (): CameraPose => ({
@@ -613,11 +626,11 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
           camera.updateProjectionMatrix();
 
           const fovRadians = (camera.fov * Math.PI) / 180;
-          const distance = (radius / Math.tan(fovRadians / 2)) * 1.35;
+          const distance = (radius / Math.tan(fovRadians / 2)) * camDistRef.current;
 
           camera.position.set(
             center.x,
-            center.y + distance * 0.2,
+            center.y + distance * camElevRef.current,
             center.z + distance,
           );
           controls?.target.copy(center);
@@ -655,6 +668,7 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
           controls.update();
         };
 
+        fitCameraRef.current = fitCamera;
         fitCamera();
         resizeObserver = new ResizeObserver(fitCamera);
         resizeObserver.observe(canvasHost);
@@ -1288,6 +1302,68 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
     };
   }, [handControlEnabled, usePlyRenderer, viewerState]);
 
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'splat-camera-pos') {
+        setCamPos({ x: e.data.x, y: e.data.y, z: e.data.z });
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
+  const applySplatRotation = (rx: number, ry: number, rz: number) => {
+    const win = iframeRef.current?.contentWindow;
+    sendSplatGesture(win, { type: 'splat-hand-control', action: 'reset' });
+    sendSplatGesture(win, { type: 'splat-hand-control', action: 'orbit', dx: ry, dy: rx });
+    sendSplatGesture(win, { type: 'splat-hand-control', action: 'roll', delta: rz });
+  };
+
+  const initialRotApplied = useRef(false);
+  useEffect(() => {
+    if (usePlyRenderer) {
+      initialRotApplied.current = false;
+      return;
+    }
+
+    if (!initialRotApplied.current && viewerState === 'ready') {
+      initialRotApplied.current = true;
+      applySplatRotation(rotX, rotY, rotZ);
+    }
+  }, [usePlyRenderer, viewerState, rotX, rotY, rotZ]);
+
+  useEffect(() => {
+    if (usePlyRenderer) {
+      if (pointsRef.current) pointsRef.current.rotation.set(rotX, rotY, rotZ);
+    } else if (initialRotApplied.current) {
+      applySplatRotation(rotX, rotY, rotZ);
+    }
+  }, [rotX, rotY, rotZ, usePlyRenderer]);
+
+  const prevCamRef = useRef({ elev: 0.238, dist: 1.350 });
+
+  useEffect(() => {
+    if (usePlyRenderer) {
+      camElevRef.current = camElev;
+      camDistRef.current = camDist;
+      fitCameraRef.current?.();
+    } else {
+      const dElev = camElev - prevCamRef.current.elev;
+      const dDist = camDist - prevCamRef.current.dist;
+      prevCamRef.current = { elev: camElev, dist: camDist };
+      if (Math.abs(dElev) > 0.001) {
+        sendSplatGesture(iframeRef.current?.contentWindow, {
+          type: 'splat-hand-control', action: 'orbit', dx: 0, dy: -dElev * 0.8,
+        });
+      }
+      if (Math.abs(dDist) > 0.001) {
+        sendSplatGesture(iframeRef.current?.contentWindow, {
+          type: 'splat-hand-control', action: 'zoom', delta: dDist * 0.4,
+        });
+      }
+    }
+  }, [camElev, camDist, usePlyRenderer]);
+
   return (
     <div
       className="splat-wrap"
@@ -1481,6 +1557,143 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
             </div>
           ) : null}
         </div>
+      </div>
+      {camPos && !usePlyRenderer && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 18,
+            left: 18,
+            zIndex: 20,
+            fontFamily: 'var(--font-mono)',
+            fontSize: '11px',
+            letterSpacing: '0.12em',
+            background: 'rgba(3,12,22,0.75)',
+            border: '1px solid rgba(0,212,180,0.18)',
+            padding: '8px 12px',
+            lineHeight: 1.8,
+            pointerEvents: 'none',
+          }}
+        >
+          <div style={{ color: 'rgba(94,142,173,0.7)', textTransform: 'uppercase', fontSize: '9px', marginBottom: 2 }}>Position</div>
+          <div><span style={{ color: 'var(--text-mid)' }}>X</span> <span style={{ color: 'var(--accent)' }}>{camPos.x.toFixed(3)}</span></div>
+          <div><span style={{ color: 'var(--text-mid)' }}>Y</span> <span style={{ color: 'var(--accent)' }}>{camPos.y.toFixed(3)}</span></div>
+          <div><span style={{ color: 'var(--text-mid)' }}>Z</span> <span style={{ color: 'var(--accent)' }}>{camPos.z.toFixed(3)}</span></div>
+        </div>
+      )}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 18,
+          right: 18,
+          zIndex: 20,
+          fontFamily: 'var(--font-mono)',
+          fontSize: '11px',
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setShowSetup(s => !s)}
+          style={{
+            letterSpacing: '0.16em',
+            textTransform: 'uppercase',
+            color: 'var(--text-hi)',
+            background: 'rgba(3,12,22,0.82)',
+            border: '1px solid rgba(0,212,180,0.28)',
+            padding: '8px 12px',
+            cursor: 'pointer',
+            marginBottom: showSetup ? 8 : 0,
+            display: 'block',
+            marginLeft: 'auto',
+          }}
+        >
+          {showSetup ? 'Hide Setup' : 'Camera Setup'}
+        </button>
+        {showSetup && (
+          <div
+            style={{
+              background: 'rgba(3,12,22,0.90)',
+              border: '1px solid rgba(0,212,180,0.22)',
+              backdropFilter: 'blur(12px)',
+              padding: '14px 16px',
+              display: 'grid',
+              gap: 10,
+              minWidth: 260,
+            }}
+          >
+            {([
+              ['Rot X', rotX, setRotX, -Math.PI, Math.PI],
+              ['Rot Y', rotY, setRotY, -Math.PI, Math.PI],
+              ['Rot Z', rotZ, setRotZ, -Math.PI, Math.PI],
+              ['Cam Elev', camElev, setCamElev, -1, 1.5],
+              ['Cam Dist', camDist, setCamDist, 0.5, 3],
+            ] as const).map(([label, value, setter, min, max]) => (
+              <label key={label} style={{ display: 'grid', gap: 4 }}>
+                <span
+                  style={{
+                    color: 'var(--text-mid)',
+                    letterSpacing: '0.14em',
+                    textTransform: 'uppercase',
+                    fontSize: '10px',
+                  }}
+                >
+                  {label}:{' '}
+                  <span style={{ color: 'var(--accent)' }}>
+                    {(value as number).toFixed(3)}
+                  </span>
+                </span>
+                <input
+                  type="range"
+                  min={min as number}
+                  max={max as number}
+                  step={0.001}
+                  value={value as number}
+                  onChange={e =>
+                    (setter as (v: number) => void)(parseFloat(e.target.value))
+                  }
+                  style={{ width: '100%', accentColor: 'var(--accent)' }}
+                />
+              </label>
+            ))}
+            <button
+              type="button"
+              onClick={() => {
+                setRotX(-1.297);
+                setRotY(-0.122);
+                setRotZ(0.320);
+                setCamElev(0.238);
+                setCamDist(1.350);
+              }}
+              style={{
+                marginTop: 4,
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                color: 'var(--text-mid)',
+                background: 'transparent',
+                border: '1px solid rgba(0,212,180,0.18)',
+                padding: '6px 10px',
+                cursor: 'pointer',
+                fontSize: '10px',
+              }}
+            >
+              Reset
+            </button>
+            <div
+              style={{
+                color: 'rgba(94,142,173,0.6)',
+                fontSize: '10px',
+                lineHeight: 1.5,
+                marginTop: 2,
+              }}
+            >
+              Values to hardcode:
+              <br />
+              rotX={rotX.toFixed(3)} rotY={rotY.toFixed(3)} rotZ={rotZ.toFixed(3)}
+              <br />
+              elev={camElev.toFixed(3)} dist={camDist.toFixed(3)}
+            </div>
+          </div>
+        )}
       </div>
       {viewerState === 'loading' ? (
         <div

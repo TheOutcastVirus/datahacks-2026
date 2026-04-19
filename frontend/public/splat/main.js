@@ -1469,6 +1469,12 @@ async function main() {
             camid.innerText = "";
         }
         lastFrame = now;
+        window.parent.postMessage({
+            type: 'splat-camera-pos',
+            x: inv2[12],
+            y: inv2[13],
+            z: inv2[14],
+        }, '*');
         requestAnimationFrame(frame);
     };
 

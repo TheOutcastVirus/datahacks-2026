@@ -138,6 +138,24 @@ export const LOCATIONS: LocationRecord[] = [
     ],
     defaultHotspotId: 'waterfront',
   },
+  {
+    slug: 'output-splat',
+    name: 'Output Splat',
+    region: 'Local render capture',
+    description:
+      'Gaussian splat render from the latest output.ply export. Use this row to open the corrected splat renderer directly.',
+    splatUrl: '/output.ply',
+    renderer: 'splat',
+    status: 'Render Ready',
+    updatedAt: 'April 18, 2026',
+    scene: {
+      year: 2026,
+      rise: 0,
+      label: 'Output',
+      color: '#7dd3fc',
+    },
+    sources: ['output.ply export', 'Gaussian splat renderer'],
+  },
 ];
 
 export function getLocationBySlug(slug: string) {
