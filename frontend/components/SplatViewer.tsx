@@ -378,6 +378,14 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
   }, [clampedFloodProgress]);
 
   useEffect(() => {
+    if (usePlyRenderer) return;
+    iframeRef.current?.contentWindow?.postMessage(
+      { type: 'splat-flood-progress', value: clampedFloodProgress },
+      '*',
+    );
+  }, [clampedFloodProgress, usePlyRenderer]);
+
+  useEffect(() => {
     actionApiRef.current = noopViewerApi;
 
     if (usePlyRenderer) {

@@ -7,6 +7,11 @@ let trajectoryT = 0.0;
 
 // Orbit radius used as pivot distance for mouse-drag orbiting
 let orbitRadius = 4;
+
+// Water level (0-1 progress, updated via postMessage)
+let waterLevelProgress = 0;
+let sceneYMin = 0;
+let sceneYMax = 1;
 const MIN_ORBIT_RADIUS = 0.05;
 const MAX_ORBIT_RADIUS = 15;
 
@@ -538,6 +543,26 @@ function createWorker(self) {
     };
 }
 
+const waterVertexShaderSource = `
+#version 300 es
+precision highp float;
+uniform mat4 u_projView;
+uniform float u_planeY;
+in vec2 a_xz;
+void main() {
+    gl_Position = u_projView * vec4(a_xz.x, a_xz.y, u_planeY, 1.0);
+}
+`.trim();
+
+const waterFragmentShaderSource = `
+#version 300 es
+precision mediump float;
+out vec4 fragColor;
+void main() {
+    fragColor = vec4(0.05, 0.35, 0.75, 0.45);
+}
+`.trim();
+
 const vertexShaderSource = `
 #version 300 es
 precision highp float;
@@ -547,6 +572,7 @@ uniform highp usampler2D u_texture;
 uniform mat4 projection, view;
 uniform vec2 focal;
 uniform vec2 viewport;
+uniform float u_waterLevel;
 
 in vec2 position;
 in int index;
@@ -556,6 +582,10 @@ out vec2 vPosition;
 
 void main () {
     uvec4 cen = texelFetch(u_texture, ivec2((uint(index) & 0x3ffu) << 1, uint(index) >> 10), 0);
+    if (uintBitsToFloat(cen.z) < u_waterLevel) {
+        gl_Position = vec4(0.0, 0.0, 2.0, 1.0);
+        return;
+    }
     vec4 cam = view * vec4(uintBitsToFloat(cen.xyz), 1);
     vec4 pos2d = projection * cam;
 
@@ -777,6 +807,45 @@ async function main() {
     gl.vertexAttribIPointer(a_index, 1, gl.INT, false, 0, 0);
     gl.vertexAttribDivisor(a_index, 1);
 
+    const u_waterLevel = gl.getUniformLocation(program, "u_waterLevel");
+
+    // Capture splat attribute state in a VAO for clean multi-pass rendering
+    const splatVAO = gl.createVertexArray();
+    gl.bindVertexArray(splatVAO);
+    gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+    gl.enableVertexAttribArray(a_position);
+    gl.vertexAttribPointer(a_position, 2, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, indexBuffer);
+    gl.enableVertexAttribArray(a_index);
+    gl.vertexAttribIPointer(a_index, 1, gl.INT, false, 0, 0);
+    gl.vertexAttribDivisor(a_index, 1);
+    gl.bindVertexArray(null);
+
+    // Water plane shader program
+    const waterVert = gl.createShader(gl.VERTEX_SHADER);
+    gl.shaderSource(waterVert, waterVertexShaderSource);
+    gl.compileShader(waterVert);
+    const waterFrag = gl.createShader(gl.FRAGMENT_SHADER);
+    gl.shaderSource(waterFrag, waterFragmentShaderSource);
+    gl.compileShader(waterFrag);
+    const waterProgram = gl.createProgram();
+    gl.attachShader(waterProgram, waterVert);
+    gl.attachShader(waterProgram, waterFrag);
+    gl.linkProgram(waterProgram);
+    const u_waterProjView = gl.getUniformLocation(waterProgram, "u_projView");
+    const u_waterPlaneY = gl.getUniformLocation(waterProgram, "u_planeY");
+    const a_waterXZ = gl.getAttribLocation(waterProgram, "a_xz");
+    const waterXZBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, waterXZBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-200, -200, 200, -200, -200, 200, 200, 200]), gl.STATIC_DRAW);
+    const waterVAO = gl.createVertexArray();
+    gl.bindVertexArray(waterVAO);
+    gl.bindBuffer(gl.ARRAY_BUFFER, waterXZBuffer);
+    gl.enableVertexAttribArray(a_waterXZ);
+    gl.vertexAttribPointer(a_waterXZ, 2, gl.FLOAT, false, 0, 0);
+    gl.bindVertexArray(null);
+    gl.useProgram(program);
+
     const resize = () => {
         viewW = Math.max(1, canvas.clientWidth);
         viewH = Math.max(1, canvas.clientHeight);
@@ -860,6 +929,10 @@ async function main() {
             activeKeys = activeKeys.filter((k) => k !== data.code);
             return;
         }
+        if (data && data.type === "splat-flood-progress") {
+            waterLevelProgress = Math.max(0, Math.min(1, data.value));
+            return;
+        }
         if (!data || data.type !== "splat-hand-control") return;
 
         if (data.action === "orbit") {
@@ -878,6 +951,15 @@ async function main() {
     worker.onmessage = (e) => {
         if (e.data.buffer) {
             splatData = new Uint8Array(e.data.buffer);
+            // Compute scene Y bounds so waterLevelProgress maps correctly
+            const f32 = new Float32Array(e.data.buffer);
+            let yMin = Infinity, yMax = -Infinity;
+            const rowCount = Math.floor(f32.length / 8);
+            for (let i = 0; i < rowCount; i++) {
+                const y = f32[i * 8 + 2];
+                if (isFinite(y)) { if (y < yMin) yMin = y; if (y > yMax) yMax = y; }
+            }
+            if (isFinite(yMin) && yMax > yMin) { sceneYMin = yMin; sceneYMax = yMax; }
             if (e.data.save) {
                 const blob = new Blob([splatData.buffer], {
                     type: "application/octet-stream",
@@ -1352,9 +1434,24 @@ async function main() {
 
         if (vertexCount > 0) {
             document.getElementById("spinner").style.display = "none";
+            const baselineZ = isAnnaberg ? sceneYMin : sceneYMin + 1.47;
+            const waterY = baselineZ + waterLevelProgress * (sceneYMax - baselineZ);
+            const waterVisible = waterLevelProgress > 0 || !isAnnaberg;
+            gl.uniform1f(u_waterLevel, waterVisible ? waterY : -1e9);
             gl.uniformMatrix4fv(u_view, false, actualViewMatrix);
             gl.clear(gl.COLOR_BUFFER_BIT);
+            gl.bindVertexArray(splatVAO);
             gl.drawArraysInstanced(gl.TRIANGLE_FAN, 0, 4, vertexCount);
+            if (waterVisible) {
+                gl.useProgram(waterProgram);
+                gl.bindVertexArray(waterVAO);
+                gl.uniformMatrix4fv(u_waterProjView, false, viewProj);
+                gl.uniform1f(u_waterPlaneY, waterY);
+                gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+                gl.useProgram(program);
+                gl.bindVertexArray(splatVAO);
+            }
+            gl.bindVertexArray(null);
         } else {
             gl.clear(gl.COLOR_BUFFER_BIT);
             document.getElementById("spinner").style.display = "";
