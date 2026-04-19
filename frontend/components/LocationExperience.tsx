@@ -24,10 +24,16 @@ import SplatViewer from '@/components/SplatViewer';
 import { useLocalSpeechToText } from '@/hooks/useLocalSpeechToText';
 import { useVoicePlayback } from '@/hooks/useVoicePlayback';
 
+const MAX_VISUALIZED_RISE_METERS = 2.0;
+
 function describeIntent(intent: string) {
   return intent
     .replace(/_/g, ' ')
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
 }
 
 export default function LocationExperience({ location }: { location: LocationRecord }) {
@@ -44,6 +50,7 @@ export default function LocationExperience({ location }: { location: LocationRec
   const [compareScenarioIds, setCompareScenarioIds] = useState<
     [string, string] | null
   >(null);
+  const [riseMeters, setRiseMeters] = useState(location.scene.rise);
   const speech = useLocalSpeechToText([
     'show 2050',
     'show baseline',
@@ -132,6 +139,7 @@ export default function LocationExperience({ location }: { location: LocationRec
         viewerRef.current?.setScenario(scenario.id);
         setCompareScenarioIds(null);
         setActiveScenarioId(scenario.id);
+        setRiseMeters(scenario.riseMeters);
         const nextResponse = buildScenarioResponse(
           location,
           scenario,
@@ -151,6 +159,7 @@ export default function LocationExperience({ location }: { location: LocationRec
         viewerRef.current?.compareScenario(left.id, right.id);
         setCompareScenarioIds([left.id, right.id]);
         setActiveScenarioId(right.id);
+        setRiseMeters(right.riseMeters);
         const nextResponse = buildCompareResponse(location, left, right);
         setResponse(nextResponse.caption);
         await speakIfEnabled(nextResponse.speech);
@@ -222,6 +231,7 @@ export default function LocationExperience({ location }: { location: LocationRec
   const scenarioLabel = compareScenarios.length
     ? `${compareScenarios[0].label} vs ${compareScenarios[1].label}`
     : currentScenario.label;
+  const floodProgress = clamp(riseMeters / MAX_VISUALIZED_RISE_METERS, 0, 1);
 
   return (
     <>
@@ -229,6 +239,7 @@ export default function LocationExperience({ location }: { location: LocationRec
         <div className="splat-stage">
           <SplatViewer
             ref={viewerRef}
+            floodProgress={floodProgress}
             hotspots={location.hotspots}
             onViewerStateChange={setViewerState}
             splatUrl={location.splatUrl}
@@ -239,12 +250,37 @@ export default function LocationExperience({ location }: { location: LocationRec
         <div className="stats-panel">
           <div className="stats-label">Sea Level Rise</div>
           <div className="stats-rise" style={{ color: currentScenario.color }}>
-            +{currentScenario.riseMeters.toFixed(2)}
+            +{riseMeters.toFixed(2)}
             <span className="stats-rise-unit">m</span>
           </div>
           <div className="stats-year">{currentScenario.year}</div>
           <div className="stats-scenario">{scenarioLabel}</div>
           <div className="stats-narration">{currentScenario.narration}</div>
+          <div className="stats-control">
+            <label className="stats-control-label" htmlFor="water-level-slider">
+              Water Level
+            </label>
+            <div className="stats-slider-row">
+              <input
+                id="water-level-slider"
+                className="stats-slider"
+                type="range"
+                min={0}
+                max={MAX_VISUALIZED_RISE_METERS}
+                step={0.01}
+                value={riseMeters}
+                onChange={(event) => {
+                  setRiseMeters(Number.parseFloat(event.currentTarget.value));
+                }}
+                aria-label="Water level"
+              />
+              <div className="stats-slider-value">{Math.round(floodProgress * 100)}%</div>
+            </div>
+            <div className="stats-slider-scale">
+              <span>Dry</span>
+              <span>Flooded</span>
+            </div>
+          </div>
         </div>
 
         <div className="attr-panel">
