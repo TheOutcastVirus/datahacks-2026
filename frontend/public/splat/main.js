@@ -1,10 +1,9 @@
-import {
-    maineCameras,
-    maineTrajectoryPoints,
-    sampledTrajectoryIndices,
-} from "./maine-pose-data.js";
-
-let cameras = maineCameras;
+// Dataset pose data — populated inside main() after dynamic import
+let cameras = [];
+let trajectoryPoints = [];
+let trajArcLengths = [0];
+let trajTotalLength = 0;
+let trajectoryT = 0.0;
 
 // Orbit radius used as pivot distance for mouse-drag orbiting
 let orbitRadius = 4;
@@ -14,24 +13,6 @@ const MAX_ORBIT_RADIUS = 15;
 // Viewport offsets — tune these to align the trajectory in the scene
 let xyzOffset = [0, 0, 0];   // world-space XYZ added to camera position each frame
 let zoomOffset = 0;           // local-Z push along camera forward (negative = zoom in)
-
-// Trajectory rail — camera position is locked to the full training-camera path
-const trajectoryPoints = maineTrajectoryPoints;
-const trajArcLengths = [0];
-for (let i = 1; i < trajectoryPoints.length; i++) {
-    const p = trajectoryPoints[i],
-        q = trajectoryPoints[i - 1];
-    trajArcLengths.push(
-        trajArcLengths[i - 1] +
-            Math.sqrt(
-                (p[0] - q[0]) ** 2 +
-                    (p[1] - q[1]) ** 2 +
-                    (p[2] - q[2]) ** 2,
-            ),
-    );
-}
-const trajTotalLength = trajArcLengths[trajArcLengths.length - 1];
-let trajectoryT = 0.0;
 
 function getTrajectoryPosition(t) {
     t = Math.max(0, Math.min(trajTotalLength, t));
@@ -60,7 +41,7 @@ function setPositionFromTrajectory(inv) {
     return inv;
 }
 
-let camera = cameras[0];
+let camera;
 
 function getProjectionMatrix(fx, fy, width, height) {
     const znear = 0.2;
@@ -636,11 +617,40 @@ void main () {
 
 `.trim();
 
-    let defaultViewMatrix = getViewMatrix(cameras[0]);
-    let viewMatrix = defaultViewMatrix.slice();
+    let defaultViewMatrix;
+    let viewMatrix;
 async function main() {
     let carousel = false;
     const params = new URLSearchParams(location.search);
+
+    // Dynamically load pose data based on which PLY is being viewed
+    const urlParam = params.get("url") || "";
+    const isAnnaberg = urlParam.toLowerCase().includes("annaberg");
+    let sampledTrajectoryIndices;
+    if (isAnnaberg) {
+        const mod = await import("./annaberg-pose-data.js");
+        cameras = mod.annabergCameras;
+        trajectoryPoints = mod.annabergTrajectoryPoints;
+        sampledTrajectoryIndices = mod.sampledTrajectoryIndices;
+    } else {
+        const mod = await import("./maine-pose-data.js");
+        cameras = mod.maineCameras;
+        trajectoryPoints = mod.maineTrajectoryPoints;
+        sampledTrajectoryIndices = mod.sampledTrajectoryIndices;
+    }
+    trajArcLengths = [0];
+    for (let i = 1; i < trajectoryPoints.length; i++) {
+        const p = trajectoryPoints[i], q = trajectoryPoints[i - 1];
+        trajArcLengths.push(
+            trajArcLengths[i - 1] +
+                Math.sqrt((p[0]-q[0])**2 + (p[1]-q[1])**2 + (p[2]-q[2])**2)
+        );
+    }
+    trajTotalLength = trajArcLengths[trajArcLengths.length - 1];
+    camera = cameras[0];
+    defaultViewMatrix = getViewMatrix(camera);
+    viewMatrix = defaultViewMatrix.slice();
+
     try {
         viewMatrix = JSON.parse(decodeURIComponent(location.hash.slice(1)));
         carousel = false;
