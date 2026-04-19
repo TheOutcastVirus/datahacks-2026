@@ -314,7 +314,7 @@ The annual path is separate because:
 - the NAO record is much longer than the monthly full-overlap window
 - annual aggregation reduces some of the monthly overlap sparsity
 - deterministic land-motion metadata can be handled explicitly in annual target space
-- long-horizon annual scenarios should be scenario-driven rather than blind monthly extrapolations
+- a century-scale annual-average method can be built directly from the retained annual trend and trained residual structure without pretending the monthly regime logic should be extrapolated unchanged
 
 ### Annual data assembly
 

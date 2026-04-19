@@ -587,7 +587,7 @@ Publish a narrow Portland land-motion artifact so the annual target adjustment d
 - `data/land_motion/portland_land_motion.nc`
 - `plots/land_motion/portland_land_motion_summary.csv`
 
-## 10. Annual Projection Data, Model, and Scenario Pipeline
+## 10. Annual Projection Data, Model, and Century-Projection Pipeline
 
 ### Goal
 

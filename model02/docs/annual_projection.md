@@ -199,7 +199,7 @@ This design reduces the risk of overfitting a short annual predictor record with
 
 ### Selection rule
 
-The selected model is chosen from the scenario-capable annual models by backtest performance, while keeping `baseline_trend` as the baseline comparison.
+The selected model is chosen from the eligible annual projection models by backtest performance, while keeping `baseline_trend` as the baseline comparison.
 
 The current selected model is:
 
@@ -449,7 +449,7 @@ This projection is:
 
 - a century-scale annual-average projection
 - based on Portland historical annual behavior
-- informed by the selected annual model’s trained residual structure
+- informed by the selected annual model's trained residual structure
 - explicit about deterministic land-motion handling
 
 ### What this annual projection is not
