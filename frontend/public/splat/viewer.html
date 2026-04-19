@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Splat Viewer</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #030c16;
+  }
+  #canvas {
+    display: block;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100% !important;
+    height: 100% !important;
+    touch-action: none;
+  }
+
+  #overlay {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 12px;
+    pointer-events: none;
+  }
+  .hex { font-size: 64px; color: rgba(45,104,128,0.08); animation: pulse 4s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:.08} 50%{opacity:.16} }
+
+  #progress-wrap {
+    width: 200px; height: 2px;
+    background: rgba(45,104,128,0.2);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  #progress {
+    height: 100%; width: 0;
+    background: #00d4b4;
+    border-radius: 2px;
+    transition: width 0.2s;
+  }
+
+  #spinner {
+    width: 28px; height: 28px;
+    border: 2px solid rgba(0,212,180,0.15);
+    border-top-color: #00d4b4;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  #message {
+    font-family: monospace;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: rgba(45,104,128,0.6);
+    text-transform: uppercase;
+  }
+
+  /* hidden helper elements */
+  #fps, #camid { display: none; }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+
+<div id="overlay">
+  <div class="hex">&#x2b21;</div>
+  <div id="spinner"></div>
+  <div id="progress-wrap"><div id="progress"></div></div>
+  <div id="message"></div>
+</div>
+
+<span id="fps"></span>
+<span id="camid"></span>
+
+<script type="module" src="./main.js"></script>
+<script>
+  // Hide overlay once scene is rendered (spinner hidden = done)
+  const obs = new MutationObserver(() => {
+    const spinner = document.getElementById('spinner');
+    if (spinner && spinner.style.display === 'none') {
+      document.getElementById('overlay').style.display = 'none';
+      obs.disconnect();
+    }
+  });
+  obs.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['style'] });
+
+  // Ensure WebGL canvas resizes with iframe (main.js only listens to window resize)
+  const fireResize = () => window.dispatchEvent(new Event('resize'));
+  window.addEventListener('load', fireResize);
+  if (window.ResizeObserver) {
+    new ResizeObserver(fireResize).observe(document.documentElement);
+  }
+  // Belt-and-suspenders: fire a few times as main.js initializes async
+  [50, 250, 800, 2000].forEach(t => setTimeout(fireResize, t));
+</script>
+</body>
+</html>
