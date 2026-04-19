@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import LocationScene from '@/components/LocationScene';
+import LocationExperience from '@/components/LocationExperience';
 import { LOCATIONS, getLocationBySlug } from '@/lib/locations';
 
 export function generateStaticParams() {
@@ -37,7 +37,7 @@ export default async function LocationPage({
         </nav>
       </header>
 
-      <LocationScene location={location} />
+      <LocationExperience location={location} />
     </div>
   );
 }
