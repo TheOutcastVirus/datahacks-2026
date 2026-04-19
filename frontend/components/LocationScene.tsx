@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import SplatViewer from '@/components/SplatViewer';
 import { getSeaLevel } from '@/lib/sea-level-data';
@@ -34,7 +34,22 @@ export default function LocationScene({
   location: LocationRecord;
 }) {
   const [sliderYear, setSliderYear] = useState(2026);
-  const riseMeters = getSeaLevel(sliderYear);
+  const [riseMeters, setRiseMeters] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+
+    void getSeaLevel(sliderYear).then((nextRiseMeters) => {
+      if (active) {
+        setRiseMeters(nextRiseMeters);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [sliderYear]);
+
   const floodProgress = clamp(riseMeters / MAX_VISUALIZED_RISE_METERS, 0, 1);
   const riseColor = getRiseColor(floodProgress);
 
@@ -69,7 +84,7 @@ export default function LocationScene({
               className="stats-slider"
               type="range"
               min={2026}
-              max={2100}
+              max={2126}
               step={1}
               value={sliderYear}
               onChange={event => {
@@ -81,7 +96,7 @@ export default function LocationScene({
           </div>
           <div className="stats-slider-scale">
             <span>2026</span>
-            <span>2100</span>
+            <span>2126</span>
           </div>
         </div>
       </div>

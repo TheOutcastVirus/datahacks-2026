@@ -50,7 +50,7 @@ The frontend today is an **early shell** aligned with phase 4 *intent* (scrub ti
 ### Before/after split-screen or time slider
 
 - **Target UX:** Either a **split view** (dry vs flooded at the same camera) or a **single view** with a **time/rise slider** (current direction: bottom timeline + slider).
-- **Presets:** Configure explicit scenarios (e.g. **+0.5 m, +1 m, +2 m**) and tie them to years such as **2050** and **2100** as needed for narrative. These should be **data-driven** (config or API), not only ad hoc constants in one component.
+- **Presets:** Configure explicit scenarios (e.g. **+0.5 m, +1 m, +2 m**) and tie them to years such as **2050** and **2126** as needed for narrative. These should be **data-driven** (config or API), not only ad hoc constants in one component.
 - **Single source of truth:** The same **`riseMeters` (and year)** signal should eventually drive **CSS overlay**, any **shader water height**, and **labels** so the UI stays consistent.
 
 ### Water animation (refraction, reflection, flow)

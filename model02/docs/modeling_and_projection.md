@@ -50,6 +50,12 @@ Predictors used by the final model:
 - `greenland_mass_gt_zscore`
 - `argo_density_shelf_0_200dbar_kg_m3_zscore`
 
+In the final product, references to Argo should be read as the same underlying source as EasyOneArgo:
+
+- EasyOneArgo is the cleaned and normalized Argo float dataset used by Sojs
+- its retained density series is a direct calibration input in the final monthly model
+- its support filters also affect whether later forecast months are labeled as constrained or extrapolative
+
 ### Why density is the retained Argo predictor
 
 The Argo part of the final model keeps density only.
@@ -59,6 +65,7 @@ Reason:
 - density already encodes both temperature and salinity physically
 - including temperature, salinity, and density together produced near-collinear predictor columns on the short overlap window
 - that short-window collinearity inflated coefficient variance and degraded out-of-sample stability
+- that retained density series is the EasyOneArgo-derived Argo contribution carried into both calibration and monthly forecasting
 
 ### Validation design
 
@@ -133,6 +140,7 @@ Definition:
 Interpretation:
 
 - best-supported monthly reconstruction regime in the current Sojs stack
+- EasyOneArgo support matters here because the cleaned Argo density predictor is one of the required inputs for a month to qualify for this regime
 
 ### Regime B: validated continuation
 
