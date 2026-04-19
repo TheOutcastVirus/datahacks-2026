@@ -980,6 +980,7 @@ async function main() {
                 if (isFinite(y)) { if (y < yMin) yMin = y; if (y > yMax) yMax = y; }
             }
             if (isFinite(yMin) && yMax > yMin) { sceneYMin = yMin; sceneYMax = yMax; }
+            if (window.__debugWater) window.__debugWater._sceneZMin = sceneYMin;
             if (e.data.save) {
                 const blob = new Blob([splatData.buffer], {
                     type: "application/octet-stream",
@@ -1454,7 +1455,9 @@ async function main() {
 
         if (vertexCount > 0) {
             document.getElementById("spinner").style.display = "none";
-            const baselineZ = isAnnaberg ? sceneYMin + 2.0 : sceneYMin + 1.47;
+            const baselineZ = (window.__debugWater?.baselineOverride != null)
+                ? window.__debugWater.baselineOverride
+                : isAnnaberg ? sceneYMin + 8 : sceneYMin + 1.47;
             const waterY = baselineZ + waterLevelProgress * (sceneYMax - baselineZ);
             const waterVisible = waterLevelProgress > 0 || !isAnnaberg;
             gl.uniform1f(u_waterLevel, waterVisible ? waterY : -1e9);
