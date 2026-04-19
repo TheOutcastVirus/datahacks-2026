@@ -86,7 +86,9 @@ export default function LocationScene({
       <div className="attr-panel">
         <div className="attr-title">Location</div>
         <div className="attr-item attr-item-strong">{location.name}</div>
-        <div className="attr-item">{location.description}</div>
+        {location.description.trim() ? (
+          <div className="attr-item">{location.description}</div>
+        ) : null}
         <div className="attr-title attr-title-spaced">Data Sources</div>
         {location.sources.map((source) => (
           <div key={source} className="attr-item">

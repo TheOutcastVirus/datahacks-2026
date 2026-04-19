@@ -42,13 +42,23 @@ function getSupportedFeatures() {
     return false;
   }
 
-  return !!(navigator.mediaDevices?.getUserMedia && window.WebSocket && window.AudioContext);
+  return typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
 }
 
-async function fetchStreamingToken() {
+export type BrowserAudioSupport = 'unknown' | 'supported' | 'unsupported';
+
+function isAbortError(error: unknown) {
+  return (
+    (error instanceof DOMException && error.name === 'AbortError') ||
+    (error instanceof Error && error.name === 'AbortError')
+  );
+}
+
+async function fetchStreamingToken(signal?: AbortSignal) {
   const response = await fetch('/api/voice/assembly/token', {
     method: 'GET',
     cache: 'no-store',
+    signal,
   });
 
   if (!response.ok) {
@@ -75,8 +85,9 @@ function createWebSocketUrl(token: string, phraseHints: string[]) {
     token,
   });
 
-  for (const hint of phraseHints.slice(0, 24)) {
-    params.append('keyterms_prompt', hint);
+  const hints = phraseHints.slice(0, 24);
+  if (hints.length > 0) {
+    params.set('keyterms_prompt', JSON.stringify(hints));
   }
 
   return `wss://streaming.assemblyai.com/v3/ws?${params.toString()}`;
@@ -163,10 +174,18 @@ export function useAssemblyAISpeechToText(phraseHints: string[] = []) {
   const stopResolverRef = useRef<((transcript: string | null) => void) | null>(null);
   const isStoppingRef = useRef(false);
   const isSessionReadyRef = useRef(false);
+  const tokenFetchAbortRef = useRef<AbortController | null>(null);
   const [state, setState] = useState<SpeechState>('idle');
   const [error, setError] = useState<string | null>(null);
   const [transcript, setTranscript] = useState('');
-  const [isSupported] = useState(() => getSupportedFeatures());
+  const [browserAudioSupport, setBrowserAudioSupport] =
+    useState<BrowserAudioSupport>('unknown');
+
+  useEffect(() => {
+    setBrowserAudioSupport(getSupportedFeatures() ? 'supported' : 'unsupported');
+  }, []);
+
+  const isSupported = browserAudioSupport === 'supported';
 
   useEffect(() => {
     stateRef.current = state;
@@ -260,6 +279,37 @@ export function useAssemblyAISpeechToText(phraseHints: string[] = []) {
       });
     }
 
+    const socket = socketRef.current;
+
+    // Released before the WebSocket exists (still fetching token) — cancel quietly, no "stopping" flash.
+    if (!socket && stateRef.current === 'connecting') {
+      tokenFetchAbortRef.current?.abort();
+      tokenFetchAbortRef.current = null;
+      stopResolverRef.current?.(null);
+      stopResolverRef.current = null;
+      await cleanup();
+      setState('idle');
+      return null;
+    }
+
+    // Socket created but session not live yet — close without Terminate UI flash.
+    if (
+      socket &&
+      stateRef.current === 'connecting' &&
+      socket.readyState !== WebSocket.OPEN
+    ) {
+      tokenFetchAbortRef.current = null;
+      isStoppingRef.current = true;
+      socket.close();
+      return new Promise<string | null>((resolve) => {
+        const previous = stopResolverRef.current;
+        stopResolverRef.current = (value) => {
+          previous?.(value);
+          resolve(value ?? null);
+        };
+      });
+    }
+
     isStoppingRef.current = true;
     setState('stopping');
 
@@ -268,15 +318,6 @@ export function useAssemblyAISpeechToText(phraseHints: string[] = []) {
     });
 
     flushPendingAudio();
-
-    const socket = socketRef.current;
-    if (!socket) {
-      stopResolverRef.current?.(finalTranscriptRef.current || transcriptRef.current || null);
-      stopResolverRef.current = null;
-      await cleanup();
-      setState('idle');
-      return finalTranscriptRef.current || transcriptRef.current || null;
-    }
 
     try {
       socket?.send(JSON.stringify({ type: 'Terminate' }));
@@ -297,7 +338,7 @@ export function useAssemblyAISpeechToText(phraseHints: string[] = []) {
       return;
     }
 
-    if (!isSupported) {
+    if (!getSupportedFeatures()) {
       setState('error');
       setError('Microphone recording is not available in this browser.');
       return;
@@ -312,9 +353,14 @@ export function useAssemblyAISpeechToText(phraseHints: string[] = []) {
     isStoppingRef.current = false;
     isSessionReadyRef.current = false;
 
+    tokenFetchAbortRef.current?.abort();
+    const tokenController = new AbortController();
+    tokenFetchAbortRef.current = tokenController;
+
     try {
       setState('connecting');
-      const token = await fetchStreamingToken();
+      const token = await fetchStreamingToken(tokenController.signal);
+      tokenFetchAbortRef.current = null;
       if (isStoppingRef.current) {
         await cleanup();
         setState('idle');
@@ -442,6 +488,12 @@ export function useAssemblyAISpeechToText(phraseHints: string[] = []) {
         }
       };
     } catch (startError) {
+      tokenFetchAbortRef.current = null;
+      if (isAbortError(startError)) {
+        await cleanup();
+        setState('idle');
+        return;
+      }
       setState('error');
       setError(getFallbackMessage(startError));
       await cleanup();
@@ -449,6 +501,7 @@ export function useAssemblyAISpeechToText(phraseHints: string[] = []) {
   };
 
   return {
+    audioSupport: browserAudioSupport,
     error,
     isSupported,
     startRecording: start,

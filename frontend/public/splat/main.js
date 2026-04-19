@@ -667,10 +667,13 @@ in int index;
 
 out vec4 vColor;
 out vec2 vPosition;
+out float vWorldY;
 
 void main () {
     uvec4 cen = texelFetch(u_texture, ivec2((uint(index) & 0x3ffu) << 1, uint(index) >> 10), 0);
-    vec4 cam = view * vec4(uintBitsToFloat(cen.xyz), 1);
+    vec3 worldPos = uintBitsToFloat(cen.xyz);
+    vWorldY = worldPos.y;
+    vec4 cam = view * vec4(worldPos, 1);
     vec4 pos2d = projection * cam;
 
     float clip = 1.2 * pos2d.w;
@@ -717,8 +720,16 @@ const fragmentShaderSource = `
 #version 300 es
 precision highp float;
 
+uniform float uFloodLevelY;
+uniform float uFloodBandWidth;
+uniform float uFloodEdgeSoftness;
+uniform float uFloodTintStrength;
+uniform vec3 uFloodColor;
+uniform float uTime;
+
 in vec4 vColor;
 in vec2 vPosition;
+in float vWorldY;
 
 out vec4 fragColor;
 
@@ -726,7 +737,31 @@ void main () {
     float A = -dot(vPosition, vPosition);
     if (A < -4.0) discard;
     float B = exp(A) * vColor.a;
-    fragColor = vec4(B * vColor.rgb, B);
+    
+    vec3 baseColor = vColor.rgb;
+    
+    float submerged = smoothstep(
+        uFloodLevelY + uFloodEdgeSoftness,
+        uFloodLevelY - uFloodEdgeSoftness,
+        vWorldY
+    );
+    
+    float band = 1.0 - smoothstep(
+        0.0,
+        uFloodBandWidth,
+        abs(vWorldY - uFloodLevelY)
+    );
+    
+    float pulse = 0.88 + 0.12 * sin(uTime * 1.6 + vWorldY * 24.0);
+    
+    baseColor = mix(
+        baseColor,
+        uFloodColor,
+        submerged * uFloodTintStrength
+    );
+    baseColor += band * pulse * vec3(0.05, 0.10, 0.13);
+    
+    fragColor = vec4(B * baseColor, B);
 }
 
 `.trim();
@@ -835,6 +870,27 @@ async function main() {
     const u_viewport = gl.getUniformLocation(program, "viewport");
     const u_focal = gl.getUniformLocation(program, "focal");
     const u_view = gl.getUniformLocation(program, "view");
+    
+    // Flood effect uniforms
+    const u_floodLevelY = gl.getUniformLocation(program, "uFloodLevelY");
+    const u_floodBandWidth = gl.getUniformLocation(program, "uFloodBandWidth");
+    const u_floodEdgeSoftness = gl.getUniformLocation(program, "uFloodEdgeSoftness");
+    const u_floodTintStrength = gl.getUniformLocation(program, "uFloodTintStrength");
+    const u_floodColor = gl.getUniformLocation(program, "uFloodColor");
+    const u_time = gl.getUniformLocation(program, "uTime");
+    
+    // Flood state - will be updated via postMessage
+    let floodLevelY = -9999.0; // Start below scene (no flooding)
+    let floodStartY = 0.0;
+    let floodEndY = 1.0;
+    let floodProgress = 0.0;
+    
+    // Set initial flood uniforms
+    gl.uniform1f(u_floodLevelY, floodLevelY);
+    gl.uniform1f(u_floodBandWidth, 0.018);
+    gl.uniform1f(u_floodEdgeSoftness, 0.012);
+    gl.uniform1f(u_floodTintStrength, 0.58);
+    gl.uniform3f(u_floodColor, 0.086, 0.49, 0.588); // #167d96
 
     // positions
     const triangleVertices = new Float32Array([-2, -2, 2, -2, 2, 2, -2, 2]);
@@ -942,6 +998,15 @@ async function main() {
         }
         if (data && data.type === "splat-keyup") {
             activeKeys = activeKeys.filter((k) => k !== data.code);
+            return;
+        }
+        if (data && data.type === "splat-flood") {
+            // Update flood parameters from parent
+            floodProgress = typeof data.progress === 'number' ? data.progress : 0;
+            if (typeof data.startY === 'number') floodStartY = data.startY;
+            if (typeof data.endY === 'number') floodEndY = data.endY;
+            // Compute the actual Y level based on progress
+            floodLevelY = floodStartY + (floodEndY - floodStartY) * floodProgress;
             return;
         }
         if (!data || data.type !== "splat-hand-control") return;
@@ -1451,6 +1516,11 @@ async function main() {
         if (vertexCount > 0) {
             document.getElementById("spinner").style.display = "none";
             gl.uniformMatrix4fv(u_view, false, actualViewMatrix);
+            
+            // Update flood uniforms
+            gl.uniform1f(u_floodLevelY, floodLevelY);
+            gl.uniform1f(u_time, now / 1000.0);
+            
             gl.clear(gl.COLOR_BUFFER_BIT);
             gl.drawArraysInstanced(gl.TRIANGLE_FAN, 0, 4, vertexCount);
         } else {

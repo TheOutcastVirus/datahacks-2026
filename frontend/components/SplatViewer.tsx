@@ -11,7 +11,7 @@ import {
 import type { Camera, Vector3 } from 'three';
 import type { OrbitControls as OrbitControlsType } from 'three/examples/jsm/controls/OrbitControls.js';
 
-import type { SceneHotspot } from '@/lib/locations';
+import type { FloodCalibration, SceneHotspot } from '@/lib/locations';
 import type { CameraPose, ViewerCommandApi, ViewerState } from '@/lib/viewer-types';
 type SplatGestureMessage =
   | { type: 'splat-hand-control'; action: 'orbit'; dx: number; dy: number }
@@ -27,6 +27,27 @@ type HandStatus =
   | 'no-hand'
   | 'permission-denied'
   | 'error';
+
+function handStatusShortLabel(status: HandStatus): string {
+  switch (status) {
+    case 'inactive':
+      return 'Off';
+    case 'initializing':
+      return 'Starting';
+    case 'requesting-camera':
+      return 'Camera';
+    case 'no-hand':
+      return 'Ready';
+    case 'tracking':
+      return 'Live';
+    case 'permission-denied':
+      return 'Blocked';
+    case 'error':
+      return 'Error';
+    default:
+      return 'Hand';
+  }
+}
 
 type Point2 = { x: number; y: number };
 type DetectedHand = 'left' | 'right' | 'unknown';
@@ -57,10 +78,6 @@ type FingerState = {
   pinky: boolean;
 };
 type HandednessPrediction = Array<Array<{ categoryName?: string | null }>> | undefined;
-type FloodCalibration = {
-  startY: number;
-  endY: number;
-};
 type FloodShader = {
   uniforms: {
     uFloodLevelY: { value: number };
@@ -86,12 +103,6 @@ const PINCH_ENTER_THRESHOLD = 0.11;
 const PINCH_EXIT_THRESHOLD = 0.18;
 const OPEN_PALM_RESET_HOLD_MS = 1200;
 const OPEN_PALM_RESET_DEADZONE = 0.0014;
-const FLOOD_CALIBRATION_BY_URL: Record<string, FloodCalibration> = {
-  '/Cabbage-mvs_1012_04.ply': {
-    startY: 0.1356126070022583,
-    endY: 0.4573782980442047,
-  },
-};
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -219,17 +230,27 @@ function computeWorldYBounds(
   return { startY: minY, endY: maxY };
 }
 
-function resolveFloodCalibration(
-  splatUrl: string,
-  boundingBox: import('three').Box3 | null | undefined,
-): FloodCalibration {
-  const calibrated = FLOOD_CALIBRATION_BY_URL[splatUrl];
-  if (calibrated) return calibrated;
+function postSplatFlood(
+  targetWindow: Window | null | undefined,
+  progress: number,
+  calibration: FloodCalibration | undefined,
+) {
+  if (!targetWindow) return;
 
-  return {
-    startY: boundingBox?.min.y ?? 0,
-    endY: boundingBox?.max.y ?? 1,
+  const splatFloodCalibration = calibration ?? {
+    startY: -1.5,
+    endY: 0.8,
   };
+
+  targetWindow.postMessage(
+    {
+      type: 'splat-flood',
+      progress,
+      startY: splatFloodCalibration.startY,
+      endY: splatFloodCalibration.endY,
+    },
+    location.origin,
+  );
 }
 function sendSplatGesture(
   targetWindow: Window | null | undefined,
@@ -276,6 +297,7 @@ type SplatViewerProps = {
   splatUrl: string;
   renderer?: 'auto' | 'ply' | 'splat';
   floodProgress?: number;
+  floodCalibration?: FloodCalibration;
   hotspots?: SceneHotspot[];
   onViewerStateChange?: (state: ViewerState) => void;
 };
@@ -285,6 +307,7 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
     splatUrl,
     renderer = 'auto',
     floodProgress = 0,
+    floodCalibration: propFloodCalibration,
     hotspots = [],
     onViewerStateChange,
   },
@@ -312,6 +335,7 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
   const [camPos, setCamPos] = useState<{ x: number; y: number; z: number } | null>(null);
   const camElevRef = useRef(0.238);
   const camDistRef = useRef(1.350);
+  const rotRef = useRef({ x: -1.327, y: 0.640, z: 0.030 });
   const gestureStateRef = useRef<GestureState>({
     smoothedCenter: null,
     smoothedPinch: null,
@@ -366,16 +390,27 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
   useEffect(() => {
     floodProgressRef.current = clampedFloodProgress;
 
+    // Handle PLY renderer flood update
     const floodShader = floodShaderRef.current;
     const floodCalibration = floodCalibrationRef.current;
-    if (!floodShader || !floodCalibration) return;
+    if (floodShader && floodCalibration) {
+      floodShader.uniforms.uFloodLevelY.value = lerp(
+        floodCalibration.startY,
+        floodCalibration.endY,
+        clampedFloodProgress,
+      );
+    }
 
-    floodShader.uniforms.uFloodLevelY.value = lerp(
-      floodCalibration.startY,
-      floodCalibration.endY,
-      clampedFloodProgress,
-    );
-  }, [clampedFloodProgress]);
+    // Handle splat iframe flood update
+    if (!usePlyRenderer) {
+      const splatWindow = iframeRef.current?.contentWindow;
+      postSplatFlood(splatWindow, clampedFloodProgress, propFloodCalibration);
+    }
+  }, [clampedFloodProgress, usePlyRenderer, propFloodCalibration]);
+
+  useEffect(() => {
+    rotRef.current = { x: rotX, y: rotY, z: rotZ };
+  }, [rotX, rotY, rotZ]);
 
   useEffect(() => {
     actionApiRef.current = noopViewerApi;
@@ -540,7 +575,13 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
           ? { min: { x: rawBox.min.x, y: rawBox.min.y, z: rawBox.min.z }, max: { x: rawBox.max.x, y: rawBox.max.y, z: rawBox.max.z } }
           : { min: { x: 0, y: 0, z: 0 }, max: { x: 1, y: 1, z: 1 } };
         localBBoxRef.current = localBox;
-        const floodCalibration = computeWorldYBounds(localBox, rotX, rotY, rotZ);
+        const { x: currentRotX, y: currentRotY, z: currentRotZ } = rotRef.current;
+        const floodCalibration = computeWorldYBounds(
+          localBox,
+          currentRotX,
+          currentRotY,
+          currentRotZ,
+        );
         floodCalibrationRef.current = floodCalibration;
         const initialFloodLevelY = lerp(
           floodCalibration.startY,
@@ -1415,6 +1456,13 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
         <iframe
           ref={iframeRef}
           src={splatIframeSrc}
+          onLoad={() => {
+            postSplatFlood(
+              iframeRef.current?.contentWindow,
+              floodProgressRef.current,
+              propFloodCalibration,
+            );
+          }}
           style={{ border: 'none', width: '100%', height: '100%', display: 'block' }}
           title="3D Gaussian Splat Viewer"
         />
@@ -1427,41 +1475,17 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
           zIndex: 20,
           display: 'flex',
           flexDirection: 'column',
-          gap: 10,
+          gap: 8,
           alignItems: 'flex-start',
         }}
       >
-        <button
-          type="button"
-          onClick={() => setHandControlEnabled((current) => !current)}
-          disabled={viewerState !== 'ready'}
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: '11px',
-            letterSpacing: '0.16em',
-            textTransform: 'uppercase',
-            color: handControlEnabled ? '#031018' : 'var(--text-hi)',
-            background: handControlEnabled ? 'var(--accent)' : 'rgba(3, 12, 22, 0.82)',
-            border: `1px solid ${
-              handControlEnabled ? 'rgba(0, 212, 180, 0.95)' : 'rgba(0, 212, 180, 0.28)'
-            }`,
-            padding: '10px 14px',
-            cursor: viewerState === 'ready' ? 'pointer' : 'default',
-            opacity: viewerState === 'ready' ? 1 : 0.55,
-            boxShadow: handControlEnabled
-              ? '0 12px 24px rgba(0, 212, 180, 0.18)'
-              : 'none',
-          }}
-        >
-          {handControlEnabled ? 'Disable Hand Control' : 'Enable Hand Control'}
-        </button>
-
         <div
           style={{
             display: 'grid',
-            gap: 8,
-            minWidth: 220,
-            padding: '10px 12px',
+            gap: 6,
+            minWidth: 200,
+            maxWidth: 'min(280px, calc(100vw - 36px))',
+            padding: '8px 10px',
             background: 'rgba(3, 12, 22, 0.82)',
             border: '1px solid rgba(0, 212, 180, 0.16)',
             backdropFilter: 'blur(12px)',
@@ -1472,52 +1496,97 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              fontFamily: 'var(--font-mono)',
-              fontSize: '10px',
-              letterSpacing: '0.18em',
-              textTransform: 'uppercase',
-              color:
-                handStatus === 'tracking'
-                  ? 'var(--accent)'
-                  : handStatus === 'error' || handStatus === 'permission-denied'
-                    ? '#fca5a5'
-                    : 'var(--text-mid)',
             }}
           >
-            <span
+            <div
               style={{
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                background:
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                flex: 1,
+                minWidth: 0,
+                fontFamily: 'var(--font-mono)',
+                fontSize: '10px',
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                color:
                   handStatus === 'tracking'
                     ? 'var(--accent)'
                     : handStatus === 'error' || handStatus === 'permission-denied'
-                      ? '#ef4444'
-                      : 'rgba(108, 180, 204, 0.7)',
-                boxShadow:
-                  handStatus === 'tracking'
-                    ? '0 0 12px rgba(0, 212, 180, 0.65)'
-                    : 'none',
+                      ? '#fca5a5'
+                      : 'var(--text-mid)',
               }}
-            />
-            {handStatus === 'inactive' ? 'Hand Control Off' : handStatus.replace('-', ' ')}
+            >
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  flexShrink: 0,
+                  borderRadius: '50%',
+                  background:
+                    handStatus === 'tracking'
+                      ? 'var(--accent)'
+                      : handStatus === 'error' || handStatus === 'permission-denied'
+                        ? '#ef4444'
+                        : 'rgba(108, 180, 204, 0.7)',
+                  boxShadow:
+                    handStatus === 'tracking'
+                      ? '0 0 10px rgba(0, 212, 180, 0.65)'
+                      : 'none',
+                }}
+              />
+              <span style={{ whiteSpace: 'nowrap' }}>Hand</span>
+              <span style={{ opacity: 0.45, padding: '0 2px' }}>·</span>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {handStatusShortLabel(handStatus)}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setHandControlEnabled((current) => !current)}
+              disabled={viewerState !== 'ready'}
+              style={{
+                flexShrink: 0,
+                fontFamily: 'var(--font-mono)',
+                fontSize: '10px',
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                color: handControlEnabled ? '#031018' : 'var(--text-hi)',
+                background: handControlEnabled ? 'var(--accent)' : 'rgba(4, 19, 31, 0.92)',
+                border: `1px solid ${
+                  handControlEnabled ? 'rgba(0, 212, 180, 0.95)' : 'rgba(0, 212, 180, 0.28)'
+                }`,
+                padding: '6px 10px',
+                cursor: viewerState === 'ready' ? 'pointer' : 'default',
+                opacity: viewerState === 'ready' ? 1 : 0.55,
+                boxShadow: handControlEnabled
+                  ? '0 8px 18px rgba(0, 212, 180, 0.14)'
+                  : 'none',
+              }}
+            >
+              {handControlEnabled ? 'Off' : 'On'}
+            </button>
           </div>
-          <div
-            style={{
-              fontFamily: 'var(--font-body)',
-              fontSize: '12px',
-              lineHeight: 1.45,
-              color: 'var(--text-mid)',
-            }}
-          >
-            {handStatusDetail}
-          </div>
+          {handControlEnabled ||
+          handStatus === 'error' ||
+          handStatus === 'permission-denied' ? (
+            <div
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: '11px',
+                lineHeight: 1.4,
+                color: 'var(--text-mid)',
+              }}
+            >
+              {handStatusDetail}
+            </div>
+          ) : null}
           {handControlEnabled ? (
             <div
               style={{
                 position: 'relative',
-                width: 220,
+                width: '100%',
+                maxWidth: 220,
                 aspectRatio: '4 / 3',
                 overflow: 'hidden',
                 border: '1px solid rgba(0, 212, 180, 0.2)',
@@ -1574,10 +1643,10 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
             <div
               style={{
                 display: 'grid',
-                gap: 4,
+                gap: 2,
                 fontFamily: 'var(--font-mono)',
-                fontSize: '10px',
-                letterSpacing: '0.08em',
+                fontSize: '9px',
+                letterSpacing: '0.06em',
                 textTransform: 'uppercase',
                 color: 'rgba(173, 224, 235, 0.74)',
               }}

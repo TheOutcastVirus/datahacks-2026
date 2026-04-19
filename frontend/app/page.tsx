@@ -28,9 +28,13 @@ export default function Home() {
             <div className="location-card-body">
               <div>
                 <h2 className="location-name">{location.name}</h2>
-                <p className="location-region">{location.region}</p>
+                {location.region.trim() ? (
+                  <p className="location-region">{location.region}</p>
+                ) : null}
               </div>
-              <p className="location-description">{location.description}</p>
+              {location.description.trim() ? (
+                <p className="location-description">{location.description}</p>
+              ) : null}
             </div>
 
             <div className="location-card-footer">

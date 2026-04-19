@@ -18,6 +18,11 @@ export type ScenarioRecord = {
   color: string;
 };
 
+export type FloodCalibration = {
+  startY: number;
+  endY: number;
+};
+
 export type LocationRecord = {
   slug: string;
   name: string;
@@ -25,6 +30,7 @@ export type LocationRecord = {
   description: string;
   splatUrl: string;
   renderer?: 'auto' | 'ply' | 'splat';
+  floodCalibration?: FloodCalibration;
   status: string;
   updatedAt: string;
   scene: {
@@ -141,11 +147,14 @@ export const LOCATIONS: LocationRecord[] = [
   {
     slug: 'output-splat',
     name: 'Output Splat',
-    region: 'Local render capture',
-    description:
-      'Gaussian splat render from the latest output.ply export. Use this row to open the corrected splat renderer directly.',
+    region: '',
+    description: '',
     splatUrl: '/output.ply',
     renderer: 'splat',
+    floodCalibration: {
+      startY: -1.5,
+      endY: 0.8,
+    },
     status: 'Render Ready',
     updatedAt: 'April 18, 2026',
     scene: {
@@ -158,14 +167,21 @@ export const LOCATIONS: LocationRecord[] = [
     hotspots: [
       {
         id: 'render-center',
-        name: 'Render Center',
-        aliases: ['render center', 'output', 'splat', 'scene'],
-        description: 'The center view for the latest output.ply export.',
+        name: 'SLAM output',
+        aliases: [
+          'slam output',
+          'slam',
+          'render center',
+          'output',
+          'splat',
+          'scene',
+        ],
+        description: 'Latest fused point cloud / splat from the SLAM pipeline.',
         cameraPose: {
           position: [-3.5, 2, 5.5],
           target: [0, 0.4, 0],
         },
-        explainText: 'Showing the render center for the latest output.ply export.',
+        explainText: 'Showing the SLAM reconstruction as a Gaussian splat.',
       },
     ],
     scenarios: [
