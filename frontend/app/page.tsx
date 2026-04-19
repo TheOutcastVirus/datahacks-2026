@@ -1,6 +1,5 @@
 import Link from 'next/link';
 
-import LocationOnboardingPanel from '@/components/LocationOnboardingPanel';
 import { LOCATIONS } from '@/lib/locations';
 
 export default function Home() {
@@ -11,12 +10,9 @@ export default function Home() {
           <div className="eyebrow">Sojs</div>
           <h1 className="dashboard-title">Location Dashboard</h1>
           <p className="dashboard-copy">
-            Launch scene demos, scaffold new waterfront locations, and turn each Sojs view into
-            a research-ready stakeholder brief.
+            Launch scene demos and turn each Sojs view into a research-ready stakeholder brief.
           </p>
         </div>
-
-        <LocationOnboardingPanel />
       </header>
 
       <section className="dashboard-grid" aria-label="Saved locations">
