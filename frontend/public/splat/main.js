@@ -6,10 +6,14 @@ import {
 
 let cameras = maineCameras;
 
-// Orbit radius for zoom — scroll adjusts distance to focal point, not camera world position
+// Orbit radius used as pivot distance for mouse-drag orbiting
 let orbitRadius = 4;
 const MIN_ORBIT_RADIUS = 0.05;
 const MAX_ORBIT_RADIUS = 15;
+
+// Viewport offsets — tune these to align the trajectory in the scene
+let xyzOffset = [0, 0, 0];   // world-space XYZ added to camera position each frame
+let zoomOffset = 0;           // local-Z push along camera forward (negative = zoom in)
 
 // Trajectory rail — camera position is locked to the full training-camera path
 const trajectoryPoints = maineTrajectoryPoints;
@@ -794,10 +798,7 @@ async function main() {
 
     const applyZoomGesture = (delta) => {
         carousel = false;
-        orbitRadius = Math.max(
-            MIN_ORBIT_RADIUS,
-            Math.min(MAX_ORBIT_RADIUS, orbitRadius + delta),
-        );
+        zoomOffset -= delta;
     };
 
     const applyPanGesture = (_dx, _dy) => {
@@ -934,6 +935,19 @@ async function main() {
             viewMatrix = getViewMatrix(camera);
         }
         camid.innerText = "cam  " + currentCameraIndex;
+        if (e.code === "BracketLeft") {
+            zoomOffset -= 0.1;
+        } else if (e.code === "BracketRight") {
+            zoomOffset += 0.1;
+        } else if (e.code === "ArrowUp" && e.shiftKey) {
+            xyzOffset[1] += 0.1;
+        } else if (e.code === "ArrowDown" && e.shiftKey) {
+            xyzOffset[1] -= 0.1;
+        } else if (e.code === "ArrowLeft" && e.shiftKey) {
+            xyzOffset[0] -= 0.1;
+        } else if (e.code === "ArrowRight" && e.shiftKey) {
+            xyzOffset[0] += 0.1;
+        }
         if (e.code == "KeyV") {
             location.hash =
                 "#" +
@@ -965,14 +979,8 @@ async function main() {
                     : e.deltaMode == 2
                       ? viewH
                       : 1;
-            // Scroll zooms by adjusting orbit radius (moves toward/away from focal point)
-            orbitRadius = Math.max(
-                MIN_ORBIT_RADIUS,
-                Math.min(
-                    MAX_ORBIT_RADIUS,
-                    orbitRadius + (e.deltaY * scale) / viewH,
-                ),
-            );
+            // Scroll zooms by moving camera along its local forward axis
+            zoomOffset += (e.deltaY * scale) / viewH;
         },
         { passive: false },
     );
@@ -1310,6 +1318,12 @@ async function main() {
         let inv2 = invert4(viewMatrix);
         inv2 = translate4(inv2, 0, -jumpDelta, 0);
         inv2 = rotate4(inv2, -0.1 * jumpDelta, 1, 0, 0);
+        // Apply world-space XYZ offset
+        inv2[12] += xyzOffset[0];
+        inv2[13] += xyzOffset[1];
+        inv2[14] += xyzOffset[2];
+        // Apply zoom by pushing along camera local forward axis
+        inv2 = translate4(inv2, 0, 0, zoomOffset);
         let actualViewMatrix = invert4(inv2);
 
         const viewProj = multiply4(projectionMatrix, actualViewMatrix);
