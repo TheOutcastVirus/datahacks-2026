@@ -225,7 +225,7 @@ def infer_time(frame: pd.DataFrame) -> tuple[pd.Series, str]:
         numeric = pd.to_numeric(frame[column], errors="coerce")
         if numeric.notna().sum() < max(3, len(frame) // 2):
             continue
-        if numeric.between(2000, 2100, inclusive="both").all():
+        if numeric.between(2000, 2126, inclusive="both").all():
             parsed = decimal_year_to_datetime(numeric)
             if parsed.notna().sum() >= max(3, len(frame) // 2):
                 return parsed, column

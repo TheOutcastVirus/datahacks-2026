@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gulf of Maine Sea Level — Sojs Research Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+
+  <nav id="nav">
+    <div class="nav-inner">
+      <span class="nav-brand">Sojs &middot; Gulf of Maine Sea Level</span>
+      <div class="nav-links">
+        <a href="#observations">Observations</a>
+        <a href="#drivers">Drivers</a>
+        <a href="#model">Model</a>
+        <a href="#predictions">Predictions</a>
+        <a href="#projection">Projection</a>
+      </div>
+    </div>
+  </nav>
+
+  <header id="hero">
+    <div class="container">
+      <p class="overline">Sea Level Science &middot; Gulf of Maine &middot; 2026</p>
+      <h1>Gulf of Maine Sea Level:<br>Observations, Drivers &amp; Projections</h1>
+      <p class="abstract">
+        An end-to-end analysis of relative sea level at Portland and Bar Harbor, Maine, integrating
+        a century of tide-gauge observations with satellite altimetry, GRACE ocean mass, Greenland
+        ice-sheet mass, EasyOneArgo (cleaned and normalized Argo float data), and the North Atlantic
+        Oscillation. EasyOneArgo is used directly in model calibration and monthly forecasting through
+        the retained density predictor and the overlap/regime filters that determine when a month is
+        treated as constrained rather than extrapolative. We validate a ridge-regularized monthly
+        reconstruction model, publish regime-labeled predictions through 2026, and project Portland
+        annual-average sea level over the next century using a NAO-informed historical trend model.
+      </p>
+      <div class="hero-stats" id="hero-stats">
+        <div class="stat"><span class="stat-label">Portland record</span><span class="stat-value">113 yr</span></div>
+        <div class="stat"><span class="stat-label">Argo role</span><span class="stat-value">Cal + forecast</span></div>
+        <div class="stat"><span class="stat-label">Best model R²</span><span class="stat-value">0.861</span></div>
+        <div class="stat"><span class="stat-label">Projection horizon</span><span class="stat-value">2126</span></div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- ─── 01 OBSERVATIONS ─────────────────────────────────────────── -->
+    <section id="observations" class="section">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-num">01</span>
+          <h2>Observed Sea Level</h2>
+        </div>
+        <div class="two-col">
+          <div class="text-col">
+            <h3>NOAA CO-OPS Tide Gauges</h3>
+            <p>Monthly mean sea-level records for Portland (station 8418150, since 1912) and Bar Harbor
+              (station 8413320, since 1947) were downloaded from the NOAA CO-OPS API, parsed into
+              <code>xarray</code> datasets, and saved to NetCDF. Portland's century-long record anchors
+              the annual projection track; Bar Harbor provides an independent modern cross-validation window.</p>
+            <p>Values are reported as monthly mean anomalies relative to each station's long-run mean, in meters.
+              The upward trend visible from the 1960s onward reflects both global mean sea-level rise and
+              local glacial isostatic adjustment (GIA) of approximately +1.1 mm/yr relative land motion
+              at Portland.</p>
+            <p>A third station, Rockland (1970–1987), was collected but excluded from the validated
+              monthly modeling window because the retained modern overlap dataset does not include a
+              modern Rockland target series.</p>
+            <div class="stat-row">
+              <div class="stat">
+                <span class="stat-label">Portland span</span>
+                <span class="stat-value mono">1912 – 2024</span>
+              </div>
+              <div class="stat">
+                <span class="stat-label">Bar Harbor span</span>
+                <span class="stat-value mono">1947 – 2024</span>
+              </div>
+            </div>
+          </div>
+          <div class="chart-col">
+            <div class="chart-wrap">
+              <div class="chart-title">Monthly mean sea level — Portland &amp; Bar Harbor</div>
+              <canvas id="chart-sealevel"></canvas>
+            </div>
+            <p class="chart-caption">Monthly anomalies relative to each station's long-run mean. The
+              shared upward trend reflects local sea-level rise. Seasonal variability of ±5–10 cm is
+              visible in the envelope width.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── 02 DRIVERS ──────────────────────────────────────────────── -->
+    <section id="drivers" class="section alt">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-num">02</span>
+          <h2>Climate Drivers</h2>
+        </div>
+        <p class="section-intro">Sea level along the Maine coast integrates steric (density-driven),
+          barystatic (ocean mass), and atmospheric forcing on interannual to decadal timescales.
+          We assembled four physically distinct predictor families from satellite and in-situ archives.
+          EasyOneArgo is highlighted explicitly because it is not just contextual oceanography: it is
+          part of the calibrated monthly model and part of the forecasting regime logic.</p>
+
+        <div class="driver-grid">
+          <div class="driver-card">
+            <h3>North Atlantic Oscillation</h3>
+            <p>The CPC monthly NAO index was fetched from NOAA and converted to a long artifact
+              spanning 1950–2026. Annual means and winter DJF means were derived for use in the annual
+              projection track. The NAO modulates atmospheric pressure gradients and wind-driven coastal
+              sea-level anomalies across the Northwest Atlantic; it is the longest retained predictor
+              family in the Sojs stack and the backbone of the century-scale projection.</p>
+            <div class="chart-wrap chart-sm">
+              <div class="chart-title">Annual mean NAO index, 1950 – 2025</div>
+              <canvas id="chart-nao"></canvas>
+            </div>
+          </div>
+          <div class="driver-card">
+            <h3>Greenland Ice Sheet Mass</h3>
+            <p>The GRACE/GRACE-FO Greenland mascon time series was downloaded from PO.DAAC
+              (<code>GREENLAND_MASS_TELLUS_MASCON_CRI_TIME_SERIES_RL06.3_V4</code>)
+              and parsed from its HDR-delimited ASCII format (254 months, April 2002 – February 2026).
+              Mass loss from Greenland contributes to global mean sea-level rise; its cumulative trend
+              appears as a retained predictor in both the monthly and annual models, capturing
+              barystatic sea-level contributions not resolved by regional altimetry alone.</p>
+            <div class="chart-wrap chart-sm">
+              <div class="chart-title">Greenland annual mass anomaly (Gt)</div>
+              <canvas id="chart-greenland"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div class="driver-note">
+          <h3>Additional Predictor Families</h3>
+          <div class="driver-badges">
+            <div class="badge-card">
+              <strong>Copernicus Marine SLA</strong>
+              <p>Gulf of Maine area-mean sea-level anomaly from the DUACS L4 satellite altimetry
+                product (<code>cmems_obs-sl_glo_phy-ssh_my_allsat-l4-duacs-0.125deg_P1D</code>,
+                1993–2024). This captures local steric and dynamic sea-level variability on
+                timescales not directly visible in the tide gauge alone.</p>
+            </div>
+            <div class="badge-card">
+              <strong>GRACE Ocean Mass</strong>
+              <p>Historical (2002–2017) ocean bottom pressure anomaly from
+                <code>TELLUS_GRAC_L3_CSR_RL06_OCN_v04</code>, reduced to a Gulf of Maine
+                area-mean mass series. Continued post-2017 using GRACE-FO
+                (<code>TELLUS_GRFO_L3_CSR_RL06.3_OCN_v04</code>), standardized onto the
+                historical mean and standard deviation before insertion into the model.</p>
+            </div>
+            <div class="badge-card">
+              <strong>EasyOneArgo / Argo Ocean Density</strong>
+              <p>EasyOneArgo is the cleaned and normalized form of the underlying Argo float data used
+                in Sojs. Monthly NW Atlantic shelf profiles were interpolated onto standard depth levels
+                and aggregated to monthly 0–200 dbar shelf density. Only months with ≥18 profiles and
+                ≥2 occupied grid cells are admitted. That support filter leaves 40 quality-controlled
+                overlap months, defines the validated calibration window, and directly affects which
+                forecast months can be labeled as observationally constrained.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── 03 MODEL ─────────────────────────────────────────────────── -->
+    <section id="model" class="section">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-num">03</span>
+          <h2>Model Selection &amp; Validation</h2>
+        </div>
+        <div class="two-col">
+          <div class="text-col">
+            <h3>Phase 4 Hindcast</h3>
+            <p>Six candidate models were evaluated on the 40-month cleaned Argo-overlap window
+              (July 2004 – June 2017) using 5-fold forward time-series cross-validation. Trend-adjusted
+              seasonal cycles were removed from both target and predictors before cross-validation to
+              isolate interannual model skill and prevent future data leakage.</p>
+            <p>The final selected model, <code>ols_with_argo_ridge</code>, uses ridge-regularized
+              ordinary least squares with four predictors: Copernicus Gulf of Maine SLA, historical
+              GRACE ocean mass, Greenland mass anomaly, and EasyOneArgo-derived 0–200 dbar shelf density.
+              This Argo input is used in both calibration and forecasting, not just as a contextual
+              side product. Argo density is preferred over separate temperature and salinity terms
+              because density already encodes both physically, and including all three produced
+              near-collinear columns that inflated coefficient variance on the short overlap window.</p>
+            <p>The model stores a reusable <code>FinalModelFit</code> object containing fitted target
+              and predictor transforms, ridge coefficients, and station baseline metadata, enabling
+              the prediction pipeline to reuse validated transforms without re-fitting.</p>
+            <h3 style="margin-top:24px">Out-of-Sample Validation</h3>
+            <div class="validation-table" id="validation-table">
+              <div class="loading">Loading validation data…</div>
+            </div>
+          </div>
+          <div class="chart-col">
+            <div class="chart-wrap">
+              <div class="chart-title">Cross-validated RMSE by model and station</div>
+              <canvas id="chart-skill"></canvas>
+            </div>
+            <p class="chart-caption">Lower RMSE is better. The final model (★) achieves the lowest
+              cross-validated RMSE on both Portland and Bar Harbor. The <em>trend+seasonal</em> model
+              is omitted — its RMSE of ~0.12 m would collapse the scale.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── 04 PREDICTIONS ───────────────────────────────────────────── -->
+    <section id="predictions" class="section alt">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-num">04</span>
+          <h2>Monthly Predictions (2004 – 2026)</h2>
+        </div>
+        <p class="section-intro">The validated final model is applied across three distinct regimes,
+          each labeled in the output product. Predictions span July 2004 through March 2026. The
+          regime label is the most important metadata in the output — and EasyOneArgo support is one
+          of the inputs that determines that label by controlling when the calibrated Argo density
+          predictor is truly available.</p>
+
+        <div class="regime-legend">
+          <div class="regime-item">
+            <span class="regime-dot" style="background:#15803d"></span>
+            <div>
+              <strong>Constrained Reconstruction</strong>
+              <span>All four validated predictors present simultaneously (Copernicus SLA + GRACE ocean mass +
+                Greenland mass + EasyOneArgo-derived Argo density). Best-supported regime in the current stack.</span>
+            </div>
+          </div>
+          <div class="regime-item">
+            <span class="regime-dot" style="background:#c2410c"></span>
+            <div>
+              <strong>Validated Continuation</strong>
+              <span>GRACE-FO substituted for historical GRACE post-2017. Continuation series is
+                standardized onto the historical GRACE mean and standard deviation. Defensible for
+                Bar Harbor; weak for Portland.</span>
+            </div>
+          </div>
+          <div class="regime-item">
+            <span class="regime-dot" style="background:#7e22ce"></span>
+            <div>
+              <strong>Pure Extrapolation</strong>
+              <span>Full predictor stack unavailable. Output is trend + fitted seasonal cycle only.
+                Clearly labeled — not a model-constrained estimate.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-group">
+          <button class="tab" data-station="Portland">Portland</button>
+          <button class="tab active" data-station="Bar Harbor">Bar Harbor</button>
+        </div>
+        <div class="prediction-chart-stack">
+          <div class="chart-wrap chart-lg">
+            <div class="chart-title" id="pred-chart-title">Bar Harbor - predicted vs observed monthly sea level</div>
+            <canvas id="chart-predictions"></canvas>
+          </div>
+          <div class="chart-wrap chart-sm">
+            <div class="chart-title" id="pred-error-title">Bar Harbor - monthly residual (actual - expected)</div>
+            <div class="chart-meta" id="pred-error-meta">Observed-month alignment coefficient loading…</div>
+            <canvas id="chart-prediction-error"></canvas>
+          </div>
+        </div>
+        <div class="prediction-stats" id="prediction-stats">
+          <div class="loading">Loading prediction statistics…</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── 05 PROJECTION ────────────────────────────────────────────── -->
+    <section id="projection" class="section">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-num">05</span>
+          <h2>Century-Scale Annual Projection</h2>
+        </div>
+        <div class="two-col">
+          <div class="text-col">
+            <h3>Portland Annual Sea Level, 2027 – 2126</h3>
+            <p>A separate annual projection track was built specifically for Portland using the longest
+              available predictor family — the monthly NAO record (1950–2026). Annual calendar-year
+              means require at least 9 valid months per variable; the resulting annual table spans 1912
+              to 2026 with 113 Portland target years.</p>
+            <p>Five annual models were evaluated in a model ladder (baseline trend, trend+NAO,
+              trend+NAO+SLA, trend+NAO+SLA+Greenland, and a ridge variant) using rolling 5-year and
+              10-year holdouts plus a final contiguous 10-year tail holdout. The selected model,
+              <code>trend_plus_nao</code>, beats the baseline trend-only model on rolling 5-year
+              holdouts (mean RMSE 0.037 m vs 0.049 m). Shorter-window models with SLA and Greenland
+              do not yet generalize as well given the current data volume.</p>
+            <p>The century projection method extracts the historical annual trend from the training data,
+              samples 4,000 bootstrap coefficient sets to represent trend uncertainty, and adds
+              AR(1)-correlated residual noise learned from the fitted model (σ = 31.4 mm, ρ = 0.589).
+              Deterministic land-motion reconstruction — GIA at +1.1 mm/yr — is added back to the
+              simulated adjusted-target paths after simulation. The resulting fan shows annual-average
+              absolute Portland sea level, not a physically forced climate scenario.</p>
+            <div class="projection-stats" id="projection-stats">
+              <div class="loading">Loading projection data…</div>
+            </div>
+          </div>
+          <div class="chart-col">
+            <div class="chart-wrap chart-lg">
+              <div class="chart-title">Portland annual-average sea level — historical &amp; projected</div>
+              <canvas id="chart-projection"></canvas>
+            </div>
+            <p class="chart-caption">Gray points: historical Portland annual-average sea level (1912–2026).
+              Solid blue: baseline projection (simulation mean). Dashed blue: low (p25) and high (p75)
+              summary paths. Blue band: 80% simulated interval from 4,000 AR(1)-noise bootstrap
+              trajectories. The summary paths and band reflect trend uncertainty and trained residual
+              variability — not externally forced climate scenarios.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <h4>Key Limitations</h4>
+          <ul>
+            <li>Monthly predictions are not a closed sea-level budget.</li>
+            <li>Portland continuation regime (GRACE-FO) is materially weak: R² = −0.45 vs +0.61 for Bar Harbor.</li>
+            <li>Argo support filter creates real month-level gaps — regime coverage is intermittent, not continuous.</li>
+            <li>Historical GRACE ends in June 2017; any 2018+ constrained months require the GRACE-FO continuation.</li>
+            <li>The century projection extrapolates a historical trend; it is not a climate-scenario ensemble.</li>
+            <li>Land motion is first-pass GIA-only metadata (+1.1 mm/yr); no GPS-based VLM correction is applied.</li>
+            <li>Rockland is intentionally excluded — the retained modern overlap dataset does not validate a Rockland monthly window.</li>
+          </ul>
+        </div>
+        <div>
+          <h4>Data Sources</h4>
+          <ul>
+            <li>NOAA CO-OPS — monthly mean tide gauge records</li>
+            <li>Copernicus Marine DUACS — L4 SSH altimetry (1993–2024)</li>
+            <li>PO.DAAC TELLUS_GRAC_L3_CSR_RL06_OCN_v04 — historical GRACE ocean mass</li>
+            <li>PO.DAAC TELLUS_GRFO_L3_CSR_RL06.3_OCN_v04 — GRACE-FO continuation</li>
+            <li>PO.DAAC Greenland Mascon RL06.3 V4 — ice-sheet mass anomaly</li>
+            <li>NOAA CPC — monthly NAO index (1950–present)</li>
+            <li>EasyOneArgo / Argo — cleaned and normalized NW Atlantic delayed-mode shelf profiles</li>
+          </ul>
+        </div>
+        <div>
+          <h4>Methods Summary</h4>
+          <ul>
+            <li>Ridge OLS with 5-fold forward time-series cross-validation</li>
+            <li>EasyOneArgo / Argo density used in calibration, regime gating, and monthly forecasting</li>
+            <li>Predictor z-score normalization on training window means and σ</li>
+            <li>Trend-adjusted seasonal deseasonalization before cross-validation</li>
+            <li>Three-regime output labeling: constrained / continuation / extrapolation</li>
+            <li>Annual model ladder with rolling 5-year and 10-year holdouts</li>
+            <li>AR(1) residual noise structure for century projection simulation</li>
+            <li>4,000-path bootstrap for projection uncertainty quantification</li>
+          </ul>
+        </div>
+      </div>
+      <p class="footer-credit">Sojs &middot; Gulf of Maine Sea Level Analysis &middot; 2026 &middot;
+        Serve from <code>model02/</code> with <code>python -m http.server 8000</code> and open
+        <code>http://localhost:8000/dashboard/</code></p>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

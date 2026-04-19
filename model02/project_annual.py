@@ -209,6 +209,26 @@ def build_projection_frame(
     return summary, diagnostics
 
 
+def build_companion_summary_csv(projections: pd.DataFrame) -> pd.DataFrame:
+    low = (
+        projections[projections["scenario"] == "low"][["year", "predicted_lower_80_m"]]
+        .rename(columns={"predicted_lower_80_m": "low"})
+        .copy()
+    )
+    base = (
+        projections[projections["scenario"] == "baseline"][["year", "predicted_m"]]
+        .rename(columns={"predicted_m": "base"})
+        .copy()
+    )
+    high = (
+        projections[projections["scenario"] == "high"][["year", "predicted_upper_80_m"]]
+        .rename(columns={"predicted_upper_80_m": "high"})
+        .copy()
+    )
+    summary = low.merge(base, on="year", how="inner").merge(high, on="year", how="inner")
+    return summary.sort_values("year", kind="stable").reset_index(drop=True)
+
+
 def save_projection_dataset(
     projections: pd.DataFrame,
     diagnostics: dict[str, float],
@@ -339,11 +359,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         horizon_years=args.horizon_years,
         n_simulations=args.n_simulations,
     )
+    companion = build_companion_summary_csv(projections)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     args.plot_dir.mkdir(parents=True, exist_ok=True)
     projections.to_csv(
         args.output_dir / "sojs_portland_annual_projections.csv",
+        index=False,
+        float_format="%.6f",
+    )
+    companion.to_csv(
+        args.output_dir / "sojs_portland_annual_projection_envelope.csv",
         index=False,
         float_format="%.6f",
     )
