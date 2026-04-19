@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Development Story — Sojs Sea Level Research</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* ── page-specific overrides ──────────────────────────────────────── */
+    .story-hero { background: var(--bg-alt, #f5f7fa); }
+
+    .timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      position: relative;
+      padding-left: 2.5rem;
+    }
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: .75rem;
+      top: .5rem;
+      bottom: .5rem;
+      width: 2px;
+      background: linear-gradient(to bottom, #3b82f6 0%, #7c3aed 50%, #15803d 100%);
+      border-radius: 2px;
+    }
+    .timeline-item {
+      position: relative;
+      padding: 1.25rem 0 1.75rem 1.5rem;
+    }
+    .timeline-item::before {
+      content: attr(data-iter);
+      position: absolute;
+      left: -2.45rem;
+      top: 1.25rem;
+      width: 1.5rem;
+      height: 1.5rem;
+      border-radius: 50%;
+      background: #fff;
+      border: 2px solid #94a3b8;
+      font-size: .65rem;
+      font-weight: 600;
+      color: #64748b;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono, 'JetBrains Mono', monospace);
+    }
+    .timeline-item.win::before  { border-color: #15803d; color: #15803d; }
+    .timeline-item.loss::before { border-color: #b91c1c; color: #b91c1c; }
+    .timeline-item.pivot::before { border-color: #7c3aed; color: #7c3aed; background: #ede9fe; }
+
+    .iter-label {
+      font-size: .7rem;
+      font-weight: 600;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      margin-bottom: .25rem;
+    }
+    .iter-label.win  { color: #15803d; }
+    .iter-label.loss { color: #b91c1c; }
+    .iter-label.neutral { color: #64748b; }
+
+    .iter-verdict {
+      display: inline-block;
+      font-size: .7rem;
+      font-family: var(--font-mono, 'JetBrains Mono', monospace);
+      padding: .15rem .5rem;
+      border-radius: 3px;
+      margin-top: .5rem;
+      font-weight: 500;
+    }
+    .iter-verdict.win    { background: #dcfce7; color: #15803d; }
+    .iter-verdict.loss   { background: #fee2e2; color: #b91c1c; }
+    .iter-verdict.neutral{ background: #f1f5f9; color: #475569; }
+
+    .scorecard-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .82rem;
+      margin-top: 1.5rem;
+    }
+    .scorecard-table th {
+      text-align: left;
+      padding: .5rem .75rem;
+      background: #f1f5f9;
+      font-weight: 600;
+      color: #334155;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    .scorecard-table td {
+      padding: .45rem .75rem;
+      border-bottom: 1px solid #e2e8f0;
+      color: #334155;
+      vertical-align: top;
+    }
+    .scorecard-table tr:last-child td { border-bottom: none; }
+    .scorecard-table .mono { font-family: var(--font-mono, 'JetBrains Mono', monospace); font-size: .78rem; }
+    .scorecard-table .tag-win  { color: #15803d; font-weight: 600; }
+    .scorecard-table .tag-loss { color: #b91c1c; font-weight: 600; }
+    .scorecard-table .tag-pivot{ color: #7c3aed; font-weight: 600; }
+    .scorecard-table tr.highlight-row td { background: #f0fdf4; }
+
+    .insight-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.25rem;
+      margin-top: 1.5rem;
+    }
+    .insight-card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 1.25rem 1.375rem;
+    }
+    .insight-card .insight-num {
+      font-size: .68rem;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: #3b82f6;
+      margin-bottom: .4rem;
+      font-family: var(--font-mono, 'JetBrains Mono', monospace);
+    }
+    .insight-card h4 {
+      font-size: .95rem;
+      font-weight: 600;
+      margin: 0 0 .5rem;
+      color: #0f172a;
+    }
+    .insight-card p {
+      font-size: .84rem;
+      line-height: 1.6;
+      color: #475569;
+      margin: 0;
+    }
+
+    .pivot-banner {
+      background: linear-gradient(135deg, #ede9fe 0%, #dbeafe 100%);
+      border: 1px solid #c4b5fd;
+      border-radius: 10px;
+      padding: 1.75rem 2rem;
+      margin: 2rem 0;
+    }
+    .pivot-banner h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: #4c1d95;
+      margin: 0 0 .75rem;
+    }
+    .pivot-banner p {
+      color: #3730a3;
+      font-size: .9rem;
+      line-height: 1.65;
+      margin: 0 0 .5rem;
+    }
+    .pivot-banner p:last-child { margin-bottom: 0; }
+
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+      margin-top: 1.5rem;
+    }
+    @media (max-width: 640px) { .compare-grid { grid-template-columns: 1fr; } }
+
+    .compare-card {
+      border-radius: 8px;
+      padding: 1.25rem 1.375rem;
+    }
+    .compare-card.v1 {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+    }
+    .compare-card.v2 {
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+    }
+    .compare-card h4 {
+      font-size: .82rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      margin: 0 0 .75rem;
+    }
+    .compare-card.v1 h4 { color: #b91c1c; }
+    .compare-card.v2 h4 { color: #15803d; }
+    .compare-card ul {
+      margin: 0;
+      padding-left: 1.1rem;
+      font-size: .85rem;
+      line-height: 1.65;
+      color: #334155;
+    }
+    .compare-card li { margin-bottom: .35rem; }
+
+    .stack-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+    .stack-card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+    }
+    .stack-card h4 {
+      font-size: .78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: #64748b;
+      margin: 0 0 .6rem;
+    }
+    .stack-card ul {
+      margin: 0;
+      padding-left: 1rem;
+      font-size: .83rem;
+      line-height: 1.7;
+      color: #334155;
+    }
+    .stack-card code {
+      font-size: .78rem;
+      background: #f1f5f9;
+      padding: .05rem .3rem;
+      border-radius: 3px;
+      font-family: var(--font-mono, 'JetBrains Mono', monospace);
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      font-size: .85rem;
+      font-weight: 500;
+      color: #3b82f6;
+      text-decoration: none;
+      margin-bottom: 1.5rem;
+    }
+    .back-link:hover { text-decoration: underline; }
+
+    .section-intro {
+      color: #475569;
+      font-size: .95rem;
+      line-height: 1.7;
+      max-width: 72ch;
+      margin: 0 0 1.5rem;
+    }
+  </style>
+</head>
+<body>
+
+  <nav id="nav">
+    <div class="nav-inner">
+      <span class="nav-brand">Sojs &middot; Gulf of Maine Sea Level</span>
+      <div class="nav-links">
+        <a href="index.html">Dashboard</a>
+        <a href="#v1">Model v1</a>
+        <a href="#iterations">Iterations</a>
+        <a href="#insights">Insights</a>
+        <a href="#pivot">The Pivot</a>
+        <a href="#stack">Stack</a>
+      </div>
+    </div>
+  </nav>
+
+  <header id="hero" class="story-hero">
+    <div class="container">
+      <p class="overline">Development Journey &middot; 2026</p>
+      <h1>How We Got Here:<br>From La Jolla to Maine</h1>
+      <p class="abstract">
+        This project didn't start in Maine. It started in La Jolla — with CalCOFI surface data,
+        Argo heat content, and a neural network that kept losing to a one-line persistence baseline.
+        Seven model iterations, two coasts, and one fundamental rethink later, we built something
+        that actually works. This page is the honest account of that process: what we tried, what
+        broke, what the data taught us, and why the final architecture looks nothing like the first one.
+      </p>
+      <div class="hero-stats">
+        <div class="stat"><span class="stat-label">First target</span><span class="stat-value">La Jolla SLA</span></div>
+        <div class="stat"><span class="stat-label">Iterations</span><span class="stat-value">7</span></div>
+        <div class="stat"><span class="stat-label">Best v1 result</span><span class="stat-value">Ties persistence</span></div>
+        <div class="stat"><span class="stat-label">Final model R²</span><span class="stat-value">0.861</span></div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- ─── 01 THE ORIGINAL PROBLEM ────────────────────────────────────── -->
+    <section id="v1" class="section">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-num">01</span>
+          <h2>The La Jolla Problem</h2>
+        </div>
+        <div class="two-col">
+          <div class="text-col">
+            <h3>What We Started With</h3>
+            <p>The original project targeted monthly sea-level anomaly (SLA) at La Jolla, CA
+              (NOAA CO-OPS station 9410230, 1949–2021) with a 1–3 month forecasting horizon.
+              The driving question: can ocean observations — specifically the Scripps CalCOFI
+              hydrographic archive and the Argo global float network — predict upcoming sea-level
+              departures before they happen?</p>
+            <p>The baseline was deliberately brutal: persistence, meaning "next month's SLA equals
+              this month's SLA." If a model can't beat that in repeated out-of-sample testing, it
+              has no practical value for coastal planning. Everything we built was judged against it.</p>
+            <h3 style="margin-top:1.5rem">The Data</h3>
+            <p>Three sources formed the initial stack:</p>
+            <ul style="font-size:.9rem;line-height:1.8;color:#475569;padding-left:1.2rem">
+              <li><strong>NOAA CO-OPS 9410230</strong> — 1,217 monthly mean sea-level values (1949–2021),
+                with seasonality removed to form the SLA target</li>
+              <li><strong>CalCOFI bottle + cast archive</strong> — 35,644 hydrographic profiles from
+                the California Cooperative Oceanic Fisheries Investigations, aggregated to monthly
+                surface temperature and salinity within 1.5° of La Jolla</li>
+              <li><strong>Argo EasyOneArgoTSLite (Scripps)</strong> — 2.7 million profiles streamed
+                from a 1.5 GB tarball, filtered to a NE Pacific box (25–40°N, 140–118°W) and
+                integrated 0–700 dbar to a monthly heat-content anomaly series</li>
+            </ul>
+            <p style="margin-top:1rem">The early EDA finding set the tone for everything that followed:
+              CalCOFI surface temperature correlated with SLA at r = 0.61 — but
+              <em>contemporaneously</em>, not as a lead. Temperature and sea level respond to the
+              same offshore state at the same time. That's information, but not a forecasting advantage.</p>
+          </div>
+          <div class="chart-col">
+            <div class="chart-wrap">
+              <div class="chart-title">La Jolla: sea-level anomaly vs CalCOFI surface temperature</div>
+              <div style="padding:1.5rem;background:#f8fafc;border-radius:6px;font-size:.85rem;color:#475569;line-height:1.7">
+                <p><strong>Key correlation findings (392 co-located months, 1949–2021):</strong></p>
+                <table style="width:100%;border-collapse:collapse;margin-top:.75rem">
+                  <tr style="border-bottom:1px solid #e2e8f0">
+                    <td style="padding:.4rem .5rem;font-weight:600;color:#334155">Feature</td>
+                    <td style="padding:.4rem .5rem;text-align:right;font-weight:600;color:#334155">r with SLA</td>
+                  </tr>
+                  <tr style="border-bottom:1px solid #e2e8f0">
+                    <td style="padding:.4rem .5rem;font-family:monospace;font-size:.8rem">temp_anomaly (lag 0)</td>
+                    <td style="padding:.4rem .5rem;text-align:right;color:#15803d;font-weight:600">+0.609</td>
+                  </tr>
+                  <tr style="border-bottom:1px solid #e2e8f0">
+                    <td style="padding:.4rem .5rem;font-family:monospace;font-size:.8rem">temp_anomaly (lag 1)</td>
+                    <td style="padding:.4rem .5rem;text-align:right;color:#94a3b8">~+0.3</td>
+                  </tr>
+                  <tr style="border-bottom:1px solid #e2e8f0">
+                    <td style="padding:.4rem .5rem;font-family:monospace;font-size:.8rem">salinity_anomaly</td>
+                    <td style="padding:.4rem .5rem;text-align:right;color:#b91c1c">−0.132</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:.4rem .5rem;font-family:monospace;font-size:.8rem">Argo heat700 (lag 0)</td>
+                    <td style="padding:.4rem .5rem;text-align:right;color:#475569">~lag-0 peak</td>
+                  </tr>
+                </table>
+                <p style="margin-top:1rem;font-style:italic">The Argo lagged-correlation plot told the same story: the correlation peak sits near lag 0. Argo heat content in the NE Pacific moves <em>with</em> SLA rather than leading it by a clean multi-month margin — which explains why adding it didn't produce a forecasting win.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── 02 SEVEN ITERATIONS ────────────────────────────────────────── -->
+    <section id="iterations" class="section alt">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-num">02</span>
+          <h2>Seven Model Iterations</h2>
+        </div>
+        <p class="section-intro">Every iteration had a clear hypothesis. Most were wrong in an
+          instructive way. The path from iteration 1 to iteration 6 is the story of a model that
+          learned its place — and a team that learned what the data can and can't support.</p>
+
+        <div class="timeline">
+
+          <div class="timeline-item loss" data-iter="1">
+            <div class="iter-label loss">Iteration 1 — Dense NN on raw anomalies</div>
+            <p style="font-size:.88rem;line-height:1.65;color:#334155;margin:.3rem 0 .5rem">
+              3-month input window (temp + SLA), 2 hidden layers, 64 units, ~60k parameters.
+              Predictions oscillated violently between 3-month segments — far noisier than the
+              actual. Monthly SLA anomalies have very little month-to-month memory, so the 3-month
+              window was too short for any ENSO-scale signal. Each prediction head was independent;
+              segments didn't line up.</p>
+            <span class="iter-verdict loss">Fails badly — adds noise</span>
+          </div>
+
+          <div class="timeline-item loss" data-iter="2">
+            <div class="iter-label loss">Iteration 2 — Smoothed target + residual head</div>
+            <p style="font-size:.88rem;line-height:1.65;color:#334155;margin:.3rem 0 .5rem">
+              Key improvements: 3-month centered rolling mean of SLA as target, 12-month input window,
+              predicting the <em>residual from persistence</em> rather than an absolute anomaly.
+              Smaller model (1×16) with weight decay. The NN did catch the 2015–16 El Niño peak
+              qualitatively — but overall RMSE was 0.053 m vs. persistence's 0.034 m.
+              Segment discontinuities remained.</p>
+            <span class="iter-verdict loss">NN 0.053 m / Persistence 0.034 m — loses by 56%</span>
+          </div>
+
+          <div class="timeline-item loss" data-iter="3">
+            <div class="iter-label loss">Iteration 3 — Add Argo 0–700 dbar heat content (inner join)</div>
+            <p style="font-size:.88rem;line-height:1.65;color:#334155;margin:.3rem 0 .5rem">
+              Integrated the Argo 1.5 GB tarball in a single streaming pass. Inner-joined onto the
+              feature table — which silently collapsed training data from 700 months to 60, because
+              CalCOFI reaches 1949 but Argo only starts in 2002. 60 training samples, 72 input
+              features, ~1,200 model parameters. Training loss: 0.0001 (pure memorisation).
+              Validation bias: −0.15 m below actual.</p>
+            <span class="iter-verdict loss">NN 0.123 m / Persistence 0.015 m — 8× worse (overfit)</span>
+          </div>
+
+          <div class="timeline-item loss" data-iter="4">
+            <div class="iter-label loss">Iteration 4 — Left-join Argo + honest date split</div>
+            <p style="font-size:.88rem;line-height:1.65;color:#334155;margin:.3rem 0 .5rem">
+              Left-joined Argo; filled pre-2002 values with 0 plus a binary <code>argo_available</code>
+              mask. Hard date split at 2010, putting the 2015–16 El Niño in validation. Recovered
+              training size — but created a severe distribution shift: <code>argo_available = 0</code>
+              for 228/318 training months, and 1 for every validation month. After z-scoring with
+              training stats, validation Argo inputs were out-of-distribution.</p>
+            <span class="iter-verdict loss">NN 0.112 m / Persistence 0.034 m — distribution shift</span>
+          </div>
+
+          <div class="timeline-item neutral" data-iter="5">
+            <div class="iter-label neutral">Iteration 5 — Argo-era only, 3-in/1-out</div>
+            <p style="font-size:.88rem;line-height:1.65;color:#334155;margin:.3rem 0 .5rem">
+              Narrowed the problem: inner-join Argo with WINDOW=3, HORIZON=1, so every row has
+              every feature. ~80 training windows (2002–2009), ~130 validation windows (2010–2020).
+              Dramatically more stable than iterations 3–4 — smooth predictions, no explosions.
+              But it completely missed the 2015–16 El Niño peak. The only ENSO-scale event in the
+              Argo-era training window was the weak 2009–10 event. The 1982–83 and 1997–98 El
+              Niños — the only real comparators for 2015–16 — were in the pre-Argo record the
+              model never saw.</p>
+            <span class="iter-verdict neutral">Stable but misses 2015 El Niño — insufficient training history</span>
+          </div>
+
+          <div class="timeline-item win" data-iter="6">
+            <div class="iter-label win">Iteration 6 — Full history, no Argo (the breakthrough)</div>
+            <p style="font-size:.88rem;line-height:1.65;color:#334155;margin:.3rem 0 .5rem">
+              Dropped Argo entirely and extended training back to 1950. Same window/horizon as
+              iteration 5, only temp anomaly + rolling means + smoothed SLA. 327 training windows
+              (1950–2009), 53 validation windows (2010–2021). Now includes 1982–83 and 1997–98
+              El Niños in training. The model tracked the 2015–16 peak closely and produced no
+              pathological bias. 327 training windows vs. 60: data coverage was the biggest lever
+              the whole time.</p>
+            <span class="iter-verdict win">NN 0.0202 m / Persistence 0.0194 m — ties persistence ✓</span>
+          </div>
+
+          <div class="timeline-item neutral" data-iter="7">
+            <div class="iter-label neutral">Iteration 7 — Full history + CalCOFI basin-scale heat proxy</div>
+            <p style="font-size:.88rem;line-height:1.65;color:#334155;margin:.3rem 0 .5rem">
+              Built a CalCOFI proxy for 0–500 m heat content spanning 1949–2021 using a broad
+              offshore SoCal box (29–36°N, 125–117°W) — the idea being to get subsurface information
+              that spans the full record and includes the major ENSO events. Script written and
+              checked in, but the per-profile Python integration loop hung before end-to-end
+              completion. This was the state of the project when we recognized it was time to
+              step back and rethink the overall strategy.</p>
+            <span class="iter-verdict neutral">Not completed — vectorization fix needed</span>
+          </div>
+
+        </div>
+
+        <h3 style="margin-top:2.5rem;font-size:1rem;font-weight:600;color:#0f172a">Iteration scorecard</h3>
+        <div style="overflow-x:auto;margin-top:.75rem">
+          <table class="scorecard-table">
+            <thead>
+              <tr>
+                <th>Iter</th>
+                <th>Setup</th>
+                <th>Train windows</th>
+                <th>Val windows</th>
+                <th>NN RMSE (m)</th>
+                <th>Persistence RMSE (m)</th>
+                <th>Verdict</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="mono">2</td>
+                <td>12-mo window, residual head, no Argo</td>
+                <td>~260</td>
+                <td>~130</td>
+                <td class="mono">0.053</td>
+                <td class="mono">0.034</td>
+                <td class="tag-loss">Loses</td>
+              </tr>
+              <tr>
+                <td class="mono">3</td>
+                <td>+Argo, inner join, 80/20 split</td>
+                <td>60</td>
+                <td>15</td>
+                <td class="mono">0.123</td>
+                <td class="mono">0.015</td>
+                <td class="tag-loss">Loses badly (overfit)</td>
+              </tr>
+              <tr>
+                <td class="mono">4</td>
+                <td>+Argo, left join, 2010 date split</td>
+                <td>318</td>
+                <td>51</td>
+                <td class="mono">0.112</td>
+                <td class="mono">0.034</td>
+                <td class="tag-loss">Loses badly (dist shift)</td>
+              </tr>
+              <tr>
+                <td class="mono">5</td>
+                <td>Argo-era only, 3-in / 1-out</td>
+                <td>~80</td>
+                <td>~130</td>
+                <td class="mono">—</td>
+                <td class="mono">—</td>
+                <td class="tag-loss">Smooth, misses 2015</td>
+              </tr>
+              <tr class="highlight-row">
+                <td class="mono">6</td>
+                <td>Full history (1950–), no Argo, 3-in / 1-out</td>
+                <td>327</td>
+                <td>53</td>
+                <td class="mono">0.0202</td>
+                <td class="mono">0.0194</td>
+                <td class="tag-pivot">Ties persistence ★</td>
+              </tr>
+              <tr>
+                <td class="mono">7</td>
+                <td>Full history + CalCOFI basin heat proxy</td>
+                <td>327</td>
+                <td>53</td>
+                <td class="mono">pending</td>
+                <td class="mono">pending</td>
+                <td class="tag-pivot">Not completed</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── 03 WHAT THE DATA TAUGHT US ────────────────────────────────── -->
+    <section id="insights" class="section">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-num">03</span>
+          <h2>What the Data Taught Us</h2>
+        </div>
+        <p class="section-intro">Six serious model configurations, one result that actually holds up.
+          The lessons were hard-won and shaped every decision in the second model.</p>
+
+        <div class="insight-grid">
+          <div class="insight-card">
+            <div class="insight-num">Lesson 01</div>
+            <h4>Monthly SLA is near the predictability limit</h4>
+            <p>La Jolla monthly sea-level anomaly at 1–3 month horizons is dominated by weather residual
+              and tidal structure with very little month-to-month memory. No configuration clearly beat
+              persistence. The best outcome was a tie. That's the honest story — and it shaped our
+              choice to switch to a longer-horizon reconstruction problem where predictability exists.</p>
+          </div>
+          <div class="insight-card">
+            <div class="insight-num">Lesson 02</div>
+            <h4>Data coverage beats model complexity</h4>
+            <p>The single biggest jump — from "misses the 2015 El Niño" to "tracks it and ties
+              persistence" — came from dropping Argo and extending the training window from 80
+              to 327 samples. Not a better architecture. Not more features. Just having the
+              1982–83 and 1997–98 events in training. Coverage first, complexity second.</p>
+          </div>
+          <div class="insight-card">
+            <div class="insight-num">Lesson 03</div>
+            <h4>Argo doesn't lead SLA at 1–3 months here</h4>
+            <p>The lagged-correlation plot was definitive: Argo 0–700 dbar heat content in the NE
+              Pacific peaks at lag 0 against La Jolla SLA. Both series respond to the same offshore
+              state simultaneously. Argo is genuinely valuable for longer horizons and broader spatial
+              integrations — but it was the wrong tool for a 1-3 month local forecast.</p>
+          </div>
+          <div class="insight-card">
+            <div class="insight-num">Lesson 04</div>
+            <h4>Smooth the target, predict the residual</h4>
+            <p>Raw monthly SLA is too noisy for a direct multi-step forecast head. Predicting
+              <code>smoothed[t+k] − smoothed[t_last]</code> — the change on top of persistence —
+              removed the mean-level offset and focused learning on the departure from "stay put."
+              This carried forward into how we handle deseasonalization in the Maine model.</p>
+          </div>
+          <div class="insight-card">
+            <div class="insight-num">Lesson 05</div>
+            <h4>Distribution shift is silent and catastrophic</h4>
+            <p>Left-joining Argo with a binary availability mask seemed clever — it preserved
+              training size while flagging missingness. In practice, z-scoring with training stats
+              sent validation Argo inputs completely out of distribution (availability: 0 for 72%
+              of training, 1 for 100% of validation). The RMSE went from 0.034 m to 0.112 m.
+              Hard temporal splits and explicit regime labels are non-negotiable.</p>
+          </div>
+          <div class="insight-card">
+            <div class="insight-num">Lesson 06</div>
+            <h4>Salinity adds almost nothing locally</h4>
+            <p>Surface salinity correlation with SLA at La Jolla: r = −0.132. After climatology
+              removal, temperature and salinity anomalies were essentially uncorrelated (r = −0.002)
+              and salinity made every feature set worse at every CalCOFI radius tested. In the Maine
+              model we use Argo-derived <em>density</em> — which encodes both — as a single physically
+              grounded predictor rather than separate T and S columns.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── 04 THE PIVOT ──────────────────────────────────────────────── -->
+    <section id="pivot" class="section alt">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-num">04</span>
+          <h2>The Pivot</h2>
+        </div>
+
+        <div class="pivot-banner">
+          <h3>The realization that changed everything</h3>
+          <p>After iteration 6, we had a model that tied persistence on a single California station
+            at a 1-month horizon. That's a respectable result — but it isn't a planning tool. No
+            city engineer uses "next month's sea level equals this month's sea level" to design a
+            seawall. The forecasting problem was fundamentally under-constrained: too noisy, too
+            local, too short-horizon.</p>
+          <p>The real planning need isn't "what happens next month." It's "what does sea level look
+            like here in 2040, and how much year-to-year variability should we expect?" That's a
+            reconstruction and projection problem — and it has a much richer observational foundation
+            to build on.</p>
+        </div>
+
+        <h3 style="font-size:1rem;font-weight:600;color:#0f172a;margin-bottom:1rem">What changed — Model v1 vs. Model v2</h3>
+        <div class="compare-grid">
+          <div class="compare-card v1">
+            <h4>Model v1 — La Jolla (what broke)</h4>
+            <ul>
+              <li>Target: monthly SLA at a single California station, 1–3 month forecast horizon</li>
+              <li>Approach: neural network with multiple hidden layers</li>
+              <li>Argo used as a <em>forecasting predictor</em> (wrong use — it's lag-0, not lead)</li>
+              <li>Best result: tied persistence (0.0202 m vs 0.0194 m)</li>
+              <li>No multi-station comparison, no uncertainty quantification</li>
+              <li>Training window constrained by CalCOFI-Argo overlap, not station record length</li>
+              <li>No regime labeling — model was applied uniformly regardless of predictor availability</li>
+            </ul>
+          </div>
+          <div class="compare-card v2">
+            <h4>Model v2 — Maine (what works)</h4>
+            <ul>
+              <li>Target: historical reconstruction + century projection for Portland and Bar Harbor</li>
+              <li>Approach: ridge-regularized OLS — interpretable, validated, sample-efficient</li>
+              <li>Argo used as a <em>calibration constraint and regime gate</em> (correct use — density encodes thermohaline state, not future sea level)</li>
+              <li>Best result: R² = 0.861 on the 40-month calibration window; beats trend-only on rolling holdouts</li>
+              <li>Three stations, explicit cross-validation, 80% prediction intervals</li>
+              <li>Training exploits the full Portland record (113 years) via NAO</li>
+              <li>Three-regime output labeling: constrained / continuation / extrapolation</li>
+            </ul>
+          </div>
+        </div>
+
+        <h3 style="font-size:1rem;font-weight:600;color:#0f172a;margin:2rem 0 .75rem">Why Maine?</h3>
+        <p style="font-size:.9rem;line-height:1.7;color:#475569;max-width:72ch">The Gulf of Maine
+          is one of the fastest-warming ocean regions on Earth and sits in the Northeast US
+          sea-level "hotspot" identified by the 2022 federal technical report. Portland's tide gauge
+          has run since 1912 — the longest continuous record in New England — giving us 113 years
+          of annual means for the projection track. The NAO is a strong atmospheric driver of
+          Gulf of Maine sea level and has a record extending back to 1950, providing the long
+          predictor family that Argo and CalCOFI could not. And unlike California's single-station
+          forecasting problem, the Maine coast has real municipal planning needs: Rockland's harbor,
+          Portland's waterfront, and Bar Harbor's ferry infrastructure all face near-term sea-level
+          decisions where a locally-calibrated model adds genuine value beyond the national projections.</p>
+      </div>
+    </section>
+
+    <!-- ─── 05 TECHNICAL STACK ────────────────────────────────────────── -->
+    <section id="stack" class="section">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-num">05</span>
+          <h2>Technical Stack</h2>
+        </div>
+        <p class="section-intro">The full pipeline from raw data ingestion through model training
+          and projection is implemented in Python, reproducible from source, and self-contained
+          within the <code>model02/</code> directory.</p>
+
+        <div class="stack-grid">
+          <div class="stack-card">
+            <h4>Data Ingestion</h4>
+            <ul>
+              <li><code>coops_tide_gauges.py</code> — NOAA CO-OPS API</li>
+              <li><code>copernicusmarine_sla.py</code> — Copernicus Marine DUACS</li>
+              <li><code>grace_mass_grids.py</code> — NASA PO.DAAC GRACE/GRACE-FO</li>
+              <li><code>greenland_mass_timeseries.py</code> — PO.DAAC Greenland mascon</li>
+              <li><code>argo_cube.py</code> — EasyOneArgo NW Atlantic shelf cube</li>
+              <li><code>nao_index.py</code> — NOAA CPC monthly NAO</li>
+              <li><code>land_motion.py</code> — Portland GIA + VLM metadata</li>
+            </ul>
+          </div>
+          <div class="stack-card">
+            <h4>Preprocessing &amp; Features</h4>
+            <ul>
+              <li><code>normalize_active_data.py</code> — align to shared monthly timeline, deseasonalize, GIA-adjust</li>
+              <li><code>analyze_salinity.py</code> — Argo shelf density derivation</li>
+              <li><code>reduced_budget_analysis.py</code> — observational budget closure</li>
+              <li><code>annual_projection_data.py</code> — Portland annual training table + NAO joins</li>
+            </ul>
+          </div>
+          <div class="stack-card">
+            <h4>Modeling</h4>
+            <ul>
+              <li><code>hindcast_model.py</code> — ridge OLS ladder, 5-fold forward CV, final model selection</li>
+              <li><code>predict_monthly.py</code> — regime-labeled monthly reconstruction export</li>
+              <li><code>annual_projection_model.py</code> — annual model ladder, rolling 5-yr / 10-yr holdouts</li>
+              <li><code>project_annual.py</code> — 4,000-path AR(1) bootstrap projection</li>
+            </ul>
+          </div>
+          <div class="stack-card">
+            <h4>Core Libraries</h4>
+            <ul>
+              <li><code>numpy</code>, <code>pandas</code> — data wrangling</li>
+              <li><code>xarray</code>, <code>netCDF4</code> — NetCDF I/O</li>
+              <li><code>matplotlib</code> — all diagnostic plots</li>
+              <li><code>copernicusmarine</code> — altimetry download</li>
+              <li><code>podaac-data-subscriber</code> (Python 3.12 runtime) — PO.DAAC download</li>
+            </ul>
+          </div>
+          <div class="stack-card">
+            <h4>Dashboard</h4>
+            <ul>
+              <li><code>Chart.js 4.4</code> — all interactive charts</li>
+              <li><code>PapaParse 5.4</code> — CSV loading</li>
+              <li>Vanilla HTML / CSS / JS — no build step</li>
+              <li>Serve with <code>python -m http.server 8000</code></li>
+            </ul>
+          </div>
+          <div class="stack-card">
+            <h4>Validation Design</h4>
+            <ul>
+              <li>Monthly: 5-fold <em>forward</em> time-series CV (no future leakage)</li>
+              <li>Annual: rolling-origin 5-yr and 10-yr holdouts + contiguous 10-yr tail</li>
+              <li>Baselines: persistence, trend-only, seasonal climatology</li>
+              <li>Metrics: RMSE, MAE, bias, trend error, 80% interval coverage</li>
+            </ul>
+          </div>
+        </div>
+
+        <div style="margin-top:2rem;padding:1.25rem 1.5rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
+          <h4 style="font-size:.85rem;font-weight:600;color:#334155;margin:0 0 .5rem">Why ridge OLS, not a neural network?</h4>
+          <p style="font-size:.85rem;line-height:1.7;color:#475569;margin:0">
+            The La Jolla iterations showed what happens when model complexity outruns sample size.
+            The validated Argo-overlap window for Maine is 40 months — far too small for any
+            deep architecture. Ridge regression is optimal here: it handles near-collinear
+            predictors (SLA, mass, density all correlate), produces interpretable coefficients,
+            cross-validates in seconds, and generalizes on small windows where a NN would memorize.
+            The R² = 0.861 result would almost certainly degrade to negative territory if we
+            swapped in a two-layer NN without an order of magnitude more training data.
+          </p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <h4>Model v1 Sources</h4>
+          <ul>
+            <li>NOAA CO-OPS 9410230 — La Jolla monthly mean sea level</li>
+            <li>Scripps CalCOFI bottle + cast archive (1949–2021)</li>
+            <li>Scripps EasyOneArgoTSLite — 2.7M NE Pacific profiles (2002–2022)</li>
+          </ul>
+        </div>
+        <div>
+          <h4>Model v2 Sources</h4>
+          <ul>
+            <li>NOAA CO-OPS — Portland, Bar Harbor, Rockland tide gauges</li>
+            <li>Copernicus Marine DUACS — Gulf of Maine SLA/ADT (1993–2024)</li>
+            <li>NASA PO.DAAC — GRACE + GRACE-FO ocean mass and Greenland mascon</li>
+            <li>Scripps EasyOneArgo — NW Atlantic shelf profiles (2004–2017)</li>
+            <li>NOAA CPC — monthly NAO index (1950–present)</li>
+          </ul>
+        </div>
+        <div>
+          <h4>Key Transitions</h4>
+          <ul>
+            <li>California → Maine: richer predictor history, real planning need</li>
+            <li>Neural network → ridge OLS: sample-efficient, interpretable</li>
+            <li>1-month forecast → multi-decadal reconstruction + projection</li>
+            <li>Argo as forecast lead → Argo as calibration constraint and regime gate</li>
+            <li>Single station → three-station comparison with regime labeling</li>
+          </ul>
+        </div>
+      </div>
+      <p class="footer-credit">
+        Sojs &middot; Development Story &middot; DataHacks 2026 &middot;
+        <a href="index.html" style="color:#3b82f6;text-decoration:none">← Back to Dashboard</a>
+      </p>
+    </div>
+  </footer>
+
+</body>
+</html>
