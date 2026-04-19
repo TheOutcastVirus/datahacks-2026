@@ -259,6 +259,118 @@ body > div {
   background: radial-gradient(ellipse at 50% 80%, #041830 0%, #020a12 100%);
 }
 
+.viewport-output-splat {
+  display: block;
+  padding: 24px 28px 32px;
+}
+
+.output-splat-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(320px, 420px);
+  gap: 24px;
+  width: min(1520px, 100%);
+  margin: 0 auto;
+  align-items: start;
+}
+
+.output-splat-main {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.output-splat-hero {
+  position: relative;
+  overflow: hidden;
+  padding: 22px 24px 24px;
+  border: 1px solid rgba(116, 198, 255, 0.24);
+  background:
+    linear-gradient(135deg, rgba(5, 18, 33, 0.92), rgba(5, 14, 25, 0.82)),
+    radial-gradient(circle at top right, rgba(94, 234, 212, 0.18), transparent 36%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 24px 48px rgba(0, 0, 0, 0.28);
+}
+
+.output-splat-hero::after {
+  content: '';
+  position: absolute;
+  inset: auto auto 0 0;
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(125, 211, 252, 0.8), transparent 72%);
+}
+
+.output-splat-kicker {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgba(214, 240, 248, 0.65);
+}
+
+.output-splat-hero-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+  gap: 20px;
+  align-items: end;
+  margin-top: 14px;
+}
+
+.output-splat-hero-copy {
+  min-width: 0;
+}
+
+.output-splat-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  font-weight: 500;
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+  color: var(--text-hi);
+}
+
+.output-splat-summary {
+  margin: 14px 0 0;
+  max-width: 52ch;
+  font-size: 14px;
+  line-height: 1.6;
+  color: rgba(214, 240, 248, 0.8);
+}
+
+.output-splat-status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.output-splat-status-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 84px;
+  padding: 14px 15px;
+  border: 1px solid rgba(125, 211, 252, 0.14);
+  background: rgba(4, 12, 21, 0.72);
+}
+
+.output-splat-status-label {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-lo);
+}
+
+.output-splat-status-value {
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-hi);
+}
+
 /* Capped “theater” size: not full screen (lighter GPU load), fills most laptops */
 .splat-stage {
   position: relative;
@@ -271,6 +383,12 @@ body > div {
     0 0 0 1px rgba(0, 0, 0, 0.4),
     0 28px 56px rgba(0, 0, 0, 0.45);
   contain: strict;
+}
+
+.output-splat-stage {
+  width: 100%;
+  height: min(760px, calc(100vh - 220px));
+  min-height: 540px;
 }
 
 /* ---- SPLAT IFRAME ---- */
@@ -300,6 +418,44 @@ body > div {
   max-width: min(272px, calc(100vw - 32px));
   box-shadow: 0 0 0 1px rgba(0,0,0,0.6), 0 8px 24px rgba(0,0,0,0.55);
   backdrop-filter: blur(12px);
+}
+
+.output-splat-card {
+  position: static;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}
+
+.output-splat-sidebar {
+  display: grid;
+  gap: 18px;
+}
+
+.output-splat-sidebar .stats-panel,
+.output-splat-sidebar .attr-panel,
+.output-splat-sidebar .voice-assistant-bar,
+.output-splat-sidebar .voice-caption-panel {
+  position: static;
+  inset: auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  border: 1px solid rgba(0, 212, 180, 0.18);
+  background: rgba(2, 11, 20, 0.9);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    0 18px 40px rgba(0, 0, 0, 0.24);
+}
+
+.output-splat-sidebar .attr-panel {
+  border-left: 1px solid rgba(0, 212, 180, 0.18);
+  padding: 18px 20px 20px;
+}
+
+.output-splat-voice-stack {
+  display: grid;
+  gap: 18px;
 }
 
 .stats-label {
@@ -739,6 +895,25 @@ body > div {
   color: #fca5a5;
 }
 
+@media (max-width: 1180px) {
+  .output-splat-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .output-splat-stage {
+    height: min(70vh, 680px);
+  }
+
+  .output-splat-sidebar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .output-splat-voice-stack {
+    grid-column: 1 / -1;
+  }
+}
+
 @media (max-width: 900px) {
   .masthead {
     grid-template-columns: 1fr;
@@ -763,9 +938,34 @@ body > div {
     padding: 12px 12px 24px;
   }
 
+  .viewport-output-splat {
+    padding: 12px 12px 24px;
+  }
+
+  .output-splat-layout {
+    gap: 14px;
+  }
+
+  .output-splat-hero {
+    padding: 18px 16px 20px;
+  }
+
+  .output-splat-hero-row {
+    grid-template-columns: 1fr;
+  }
+
+  .output-splat-status-grid {
+    grid-template-columns: 1fr;
+  }
+
   .splat-stage {
     width: 100%;
     height: min(62vh, 520px);
+  }
+
+  .output-splat-stage {
+    min-height: 320px;
+    height: min(56vh, 420px);
   }
 
   .stats-panel,
@@ -788,5 +988,16 @@ body > div {
   .voice-assistant-bar,
   .voice-caption-panel {
     width: 100%;
+  }
+
+  .output-splat-sidebar {
+    grid-template-columns: 1fr;
+  }
+
+  .output-splat-sidebar .stats-panel,
+  .output-splat-sidebar .attr-panel,
+  .output-splat-sidebar .voice-assistant-bar,
+  .output-splat-sidebar .voice-caption-panel {
+    margin-top: 0;
   }
 }
