@@ -1,0 +1,47 @@
+"""Shared project paths for the reorganized AI workspace."""
+from __future__ import annotations
+
+from pathlib import Path
+
+
+AI_ROOT = Path(__file__).resolve().parents[1]
+CODE_DIR = AI_ROOT / "code"
+DOCS_DIR = AI_ROOT / "docs"
+DATA_DIR = AI_ROOT / "data"
+RAW_DIR = DATA_DIR / "raw"
+PROCESSED_DIR = DATA_DIR / "processed"
+OUTPUTS_DIR = AI_ROOT / "outputs"
+PLOTS_DIR = OUTPUTS_DIR / "plots"
+
+RAW_ARGO_DIR = RAW_DIR / "argo"
+RAW_CALCOFI_DIR = RAW_DIR / "calcofi"
+RAW_COOPS_DIR = RAW_DIR / "coops"
+RAW_REFERENCES_DIR = RAW_DIR / "references"
+
+PROCESSED_ARGO_DIR = PROCESSED_DIR / "argo"
+PROCESSED_CALCOFI_DIR = PROCESSED_DIR / "calcofi"
+PROCESSED_COOPS_DIR = PROCESSED_DIR / "coops"
+PROCESSED_MODELS_DIR = PROCESSED_DIR / "models"
+
+CALCOFI_ARCHIVE_NAME = "CalCOFI_Database_194903-202105_csv_16October2023"
+
+RAW_ARGO_TARBALL = RAW_ARGO_DIR / "127234.tar.gz"
+RAW_CALCOFI_ZIP = RAW_CALCOFI_DIR / f"{CALCOFI_ARCHIVE_NAME}.zip"
+RAW_CALCOFI_EXTRACTED_DIR = RAW_CALCOFI_DIR / CALCOFI_ARCHIVE_NAME
+RAW_CALCOFI_BASE_DIR = (
+    RAW_CALCOFI_EXTRACTED_DIR / CALCOFI_ARCHIVE_NAME / CALCOFI_ARCHIVE_NAME
+)
+RAW_COOPS_CSV = RAW_COOPS_DIR / "CO-OPS_9410230_met.csv"
+RAW_DATASET_BANK_PDF = RAW_REFERENCES_DIR / "120355.pdf"
+
+PROCESSED_ARGO_CSV = PROCESSED_ARGO_DIR / "argo_heat700_monthly.csv"
+PROCESSED_CALCOFI_NC = PROCESSED_CALCOFI_DIR / "calcofi_temp_salinity_1.nc"
+PROCESSED_CALCOFI_LEGACY_NC = AI_ROOT / "calcofi_temp_salinity.nc"
+PROCESSED_COOPS_NC = PROCESSED_COOPS_DIR / "CO-OPS_9410230_met.nc"
+SLA_NORMALIZED_CSV = PROCESSED_MODELS_DIR / "sla_normalized.csv"
+SLA_PREDICTION_CSV = PROCESSED_MODELS_DIR / "sla_prediction_timeseries.csv"
+SLA_PREDICTION_STOCHASTIC_CSV = (
+    PROCESSED_MODELS_DIR / "sla_prediction_timeseries_stochastic.csv"
+)
+
+PLOTS_DIR.mkdir(parents=True, exist_ok=True)

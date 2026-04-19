@@ -39,8 +39,10 @@ export async function POST(request: Request) {
   );
 
   if (!response.ok || !response.body) {
+    const err = await response.text().catch(() => '');
+    console.error('ElevenLabs error:', err);
     return NextResponse.json(
-      { error: 'Unable to synthesize speech right now.' },
+      { error: err || 'Unable to synthesize speech right now.' },
       { status: 502 },
     );
   }

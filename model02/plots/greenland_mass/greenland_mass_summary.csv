@@ -1,0 +1,2 @@
+collection_short_name,mass_variable,time_start,time_end,time_steps,mean_gt,std_gt,min_gt,max_gt
+GREENLAND_MASS_TELLUS_MASCON_CRI_TIME_SERIES_RL06.3_V4,greenland_mass_gt,2002-04-01,2026-02-01,254,-3024.311417,1859.896765,-5774.84,62.07
