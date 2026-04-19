@@ -27,6 +27,23 @@ export type FloodCalibration = {
   maxZ?: number;
 };
 
+export type FloodOverlayPoint = {
+  x: number;
+  z: number;
+};
+
+export type FloodOverlayRegion = {
+  id: string;
+  label: string;
+  polygon: FloodOverlayPoint[];
+  minProgress?: number;
+  maxProgress?: number;
+};
+
+export type FloodOverlay = {
+  regions: FloodOverlayRegion[];
+};
+
 export type LocationRecord = {
   slug: string;
   name: string;
@@ -35,6 +52,7 @@ export type LocationRecord = {
   splatUrl: string;
   renderer?: 'auto' | 'ply' | 'splat';
   floodCalibration?: FloodCalibration;
+  floodOverlay?: FloodOverlay;
   status: string;
   updatedAt: string;
   scene: {
@@ -58,6 +76,40 @@ export const LOCATIONS: LocationRecord[] = [
       'Baseline capture for the Seattle waterfront render. Use this route as the entry point for future location-specific scenes.',
     splatUrl: '/Cabbage-mvs_1012_04.ply',
     renderer: 'ply',
+    floodOverlay: {
+      regions: [
+        {
+          id: 'shoreline-band',
+          label: 'Shoreline band',
+          minProgress: 0.08,
+          maxProgress: 0.72,
+          polygon: [
+            { x: 0.08, z: 0.18 },
+            { x: 0.22, z: 0.12 },
+            { x: 0.58, z: 0.10 },
+            { x: 0.92, z: 0.15 },
+            { x: 0.95, z: 0.30 },
+            { x: 0.70, z: 0.42 },
+            { x: 0.34, z: 0.46 },
+            { x: 0.12, z: 0.36 },
+          ],
+        },
+        {
+          id: 'promenade-pocket',
+          label: 'Promenade pocket',
+          minProgress: 0.34,
+          maxProgress: 0.9,
+          polygon: [
+            { x: 0.24, z: 0.34 },
+            { x: 0.46, z: 0.28 },
+            { x: 0.60, z: 0.35 },
+            { x: 0.54, z: 0.52 },
+            { x: 0.30, z: 0.56 },
+            { x: 0.18, z: 0.46 },
+          ],
+        },
+      ],
+    },
     status: 'Render Ready',
     updatedAt: 'April 18, 2026',
     scene: {
@@ -155,6 +207,10 @@ export const LOCATIONS: LocationRecord[] = [
     description: '',
     splatUrl: '/output.ply',
     renderer: 'splat',
+    floodCalibration: {
+      startY: -1.5,
+      endY: 0.8,
+    },
     status: 'Render Ready',
     updatedAt: 'April 18, 2026',
     scene: {
