@@ -48,13 +48,6 @@ function getSupportedFeatures() {
     return false;
   }
 
-<<<<<<< Updated upstream
-  return (
-    typeof navigator !== 'undefined' &&
-    !!navigator.mediaDevices?.getUserMedia &&
-    typeof AudioWorkletNode !== 'undefined'
-  );
-=======
   const AC =
     window.AudioContext ||
     (window as LegacyWindowAudio).webkitAudioContext;
@@ -99,12 +92,8 @@ async function addPCMWorkletModule(audioContext: AudioContext) {
   } finally {
     URL.revokeObjectURL(url);
   }
->>>>>>> Stashed changes
 }
 
-const ASSEMBLY_CAPTURE_WORKLET_URL = '/audio-worklets/assemblyai-capture.worklet.js';
-
-export type BrowserAudioSupport = 'unknown' | 'supported' | 'unsupported';
 
 function isAbortError(error: unknown) {
   return (
@@ -258,12 +247,8 @@ export function useAssemblyAISpeechToText(phraseHints: string[] = [], onEndOfTur
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
-<<<<<<< Updated upstream
-  const workletRef = useRef<AudioWorkletNode | null>(null);
-=======
   const captureNodeRef = useRef<CaptureNode | null>(null);
   const muteGainRef = useRef<GainNode | null>(null);
->>>>>>> Stashed changes
   const pendingSamplesRef = useRef<number[]>([]);
   const queuedChunksRef = useRef<Int16Array[]>([]);
   const finalTranscriptRef = useRef('');
@@ -276,22 +261,11 @@ export function useAssemblyAISpeechToText(phraseHints: string[] = [], onEndOfTur
   const [state, setState] = useState<SpeechState>('idle');
   const [error, setError] = useState<string | null>(null);
   const [transcript, setTranscript] = useState('');
-<<<<<<< Updated upstream
-  const [browserAudioSupport, setBrowserAudioSupport] =
-    useState<BrowserAudioSupport>('unknown');
-
-  useEffect(() => {
-    setBrowserAudioSupport(getSupportedFeatures() ? 'supported' : 'unsupported');
-  }, []);
-
-  const isSupported = browserAudioSupport === 'supported';
-=======
   const isSupported = useSyncExternalStore(
     subscribeToMicrophoneSupport,
     getSupportedFeatures,
     () => false,
   );
->>>>>>> Stashed changes
 
   useEffect(() => {
     stateRef.current = state;
@@ -309,15 +283,10 @@ export function useAssemblyAISpeechToText(phraseHints: string[] = [], onEndOfTur
         }
         socket?.close();
 
-<<<<<<< Updated upstream
-        workletRef.current?.disconnect();
-        workletRef.current = null;
-=======
         captureNodeRef.current?.disconnect();
         captureNodeRef.current = null;
         muteGainRef.current?.disconnect();
         muteGainRef.current = null;
->>>>>>> Stashed changes
         sourceNodeRef.current?.disconnect();
         sourceNodeRef.current = null;
 
@@ -331,15 +300,10 @@ export function useAssemblyAISpeechToText(phraseHints: string[] = [], onEndOfTur
   }, []);
 
   const cleanup = async () => {
-<<<<<<< Updated upstream
-    workletRef.current?.disconnect();
-    workletRef.current = null;
-=======
     captureNodeRef.current?.disconnect();
     captureNodeRef.current = null;
     muteGainRef.current?.disconnect();
     muteGainRef.current = null;
->>>>>>> Stashed changes
     sourceNodeRef.current?.disconnect();
     sourceNodeRef.current = null;
 
@@ -522,22 +486,7 @@ export function useAssemblyAISpeechToText(phraseHints: string[] = [], onEndOfTur
           const source = audioContext.createMediaStreamSource(stream);
           sourceNodeRef.current = source;
 
-<<<<<<< Updated upstream
-          await audioContext.audioWorklet.addModule(ASSEMBLY_CAPTURE_WORKLET_URL);
-
-          const captureNode = new AudioWorkletNode(audioContext, 'assemblyai-capture', {
-            numberOfInputs: 1,
-            numberOfOutputs: 1,
-            channelCount: 1,
-            channelCountMode: 'explicit',
-            channelInterpretation: 'speakers',
-          });
-          workletRef.current = captureNode;
-
-          captureNode.port.onmessage = (event: MessageEvent<ArrayBuffer>) => {
-=======
           const captureNode = await createCaptureNode(audioContext, (inputBuffer) => {
->>>>>>> Stashed changes
             if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
               return;
             }
@@ -546,15 +495,6 @@ export function useAssemblyAISpeechToText(phraseHints: string[] = [], onEndOfTur
               return;
             }
 
-<<<<<<< Updated upstream
-            const raw = event.data;
-            if (!(raw instanceof ArrayBuffer)) {
-              return;
-            }
-
-            const inputBuffer = new Float32Array(raw);
-=======
->>>>>>> Stashed changes
             const downsampled = downsampleBuffer(
               inputBuffer,
               audioContext.sampleRate,
@@ -571,15 +511,6 @@ export function useAssemblyAISpeechToText(phraseHints: string[] = [], onEndOfTur
           });
           captureNodeRef.current = captureNode;
 
-<<<<<<< Updated upstream
-          source.connect(captureNode);
-          // Route through a silent sink instead of `destination` so the mic
-          // is captured for AssemblyAI without echoing back through the speakers.
-          const silentSink = audioContext.createGain();
-          silentSink.gain.value = 0;
-          captureNode.connect(silentSink);
-          silentSink.connect(audioContext.destination);
-=======
           const muteGain = audioContext.createGain();
           muteGain.gain.value = 0;
           muteGainRef.current = muteGain;
@@ -587,7 +518,6 @@ export function useAssemblyAISpeechToText(phraseHints: string[] = [], onEndOfTur
           source.connect(captureNode);
           captureNode.connect(muteGain);
           muteGain.connect(audioContext.destination);
->>>>>>> Stashed changes
 
           setState('recording');
         } catch (startError) {
@@ -665,7 +595,6 @@ export function useAssemblyAISpeechToText(phraseHints: string[] = [], onEndOfTur
   };
 
   return {
-    audioSupport: browserAudioSupport,
     error,
     isSupported,
     startRecording: start,
