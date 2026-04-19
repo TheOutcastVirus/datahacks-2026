@@ -1,9 +1,18 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type { OrbitControls as OrbitControlsType } from 'three/examples/jsm/controls/OrbitControls.js';
 
-type ViewerState = 'loading' | 'ready' | 'error';
+import type { SceneHotspot } from '@/lib/locations';
+import type { CameraPose, ViewerCommandApi, ViewerState } from '@/lib/viewer-types';
+
 type HandStatus =
   | 'inactive'
   | 'initializing'
@@ -61,13 +70,26 @@ function sendSplatGesture(
   splatWindow.postMessage(message, location.origin);
 }
 
-export default function SplatViewer({
-  splatUrl,
-  renderer = 'auto',
-}: {
+const noopViewerApi: ViewerCommandApi = {
+  async goToHotspot() {},
+  moveCamera() {},
+  zoomCamera() {},
+  resetCamera() {},
+  setScenario() {},
+  compareScenario() {},
+};
+
+type SplatViewerProps = {
   splatUrl: string;
   renderer?: 'auto' | 'ply' | 'splat';
-}) {
+  hotspots?: SceneHotspot[];
+  onViewerStateChange?: (state: ViewerState) => void;
+};
+
+const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function SplatViewer(
+  { splatUrl, renderer = 'auto', hotspots = [], onViewerStateChange },
+  ref,
+) {
   const canvasHostRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -81,8 +103,13 @@ export default function SplatViewer({
   });
   const handStatusRef = useRef<HandStatus>('inactive');
   const handStatusDetailRef = useRef<string>('Hand control off');
+  const actionApiRef = useRef<ViewerCommandApi>(noopViewerApi);
   const isPlyAsset = splatUrl.toLowerCase().endsWith('.ply');
   const usePlyRenderer = renderer === 'ply' || (renderer === 'auto' && isPlyAsset);
+  const hotspotMap = useMemo(
+    () => new Map(hotspots.map((hotspot) => [hotspot.id, hotspot])),
+    [hotspots],
+  );
   const [viewerState, setViewerState] = useState<ViewerState>(
     usePlyRenderer ? 'loading' : 'ready',
   );
@@ -96,28 +123,67 @@ export default function SplatViewer({
     [splatUrl],
   );
 
+  useImperativeHandle(
+    ref,
+    () => ({
+      goToHotspot: (hotspotId) => actionApiRef.current.goToHotspot(hotspotId),
+      moveCamera: (direction) => actionApiRef.current.moveCamera(direction),
+      zoomCamera: (direction) => actionApiRef.current.zoomCamera(direction),
+      resetCamera: () => actionApiRef.current.resetCamera(),
+      setScenario: (scenarioId) => actionApiRef.current.setScenario(scenarioId),
+      compareScenario: (leftId, rightId) =>
+        actionApiRef.current.compareScenario(leftId, rightId),
+    }),
+    [],
+  );
+
   useEffect(() => {
-    if (usePlyRenderer) return;
-    const MOVE_KEYS = new Set(['KeyW','KeyS','KeyA','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyQ','KeyE','Space']);
-    const forward = (e: KeyboardEvent) => {
-      if (!MOVE_KEYS.has(e.code)) return;
-      e.preventDefault();
-      iframeRef.current?.contentWindow?.postMessage({ type: 'splat-keydown', code: e.code }, '*');
+    onViewerStateChange?.(viewerState);
+  }, [onViewerStateChange, viewerState]);
+
+  useEffect(() => {
+    actionApiRef.current = noopViewerApi;
+
+    if (usePlyRenderer) {
+      return;
+    }
+
+    const splatWindow = () => iframeRef.current?.contentWindow ?? null;
+    const pressKey = (code: string) => {
+      splatWindow()?.postMessage({ type: 'splat-keydown', code }, location.origin);
+      window.setTimeout(() => {
+        splatWindow()?.postMessage({ type: 'splat-keyup', code }, location.origin);
+      }, 140);
     };
-    const release = (e: KeyboardEvent) => {
-      if (!MOVE_KEYS.has(e.code)) return;
-      iframeRef.current?.contentWindow?.postMessage({ type: 'splat-keyup', code: e.code }, '*');
-    };
-    window.addEventListener('keydown', forward);
-    window.addEventListener('keyup', release);
-    return () => {
-      window.removeEventListener('keydown', forward);
-      window.removeEventListener('keyup', release);
+
+    actionApiRef.current = {
+      async goToHotspot() {},
+      moveCamera(direction) {
+        const codeMap = {
+          left: 'KeyA',
+          right: 'KeyD',
+          forward: 'KeyW',
+          back: 'KeyS',
+        } as const;
+        pressKey(codeMap[direction]);
+      },
+      zoomCamera(direction) {
+        sendSplatGesture(splatWindow(), {
+          type: 'splat-hand-control',
+          action: 'zoom',
+          delta: direction === 'in' ? -0.45 : 0.45,
+        });
+      },
+      resetCamera() {},
+      setScenario() {},
+      compareScenario() {},
     };
   }, [usePlyRenderer]);
 
   useEffect(() => {
-    if (!usePlyRenderer) return;
+    if (!usePlyRenderer) {
+      return;
+    }
 
     const canvasHost = canvasHostRef.current;
     if (!canvasHost) return;
@@ -126,12 +192,23 @@ export default function SplatViewer({
     let animationFrameId = 0;
     let resizeObserver: ResizeObserver | null = null;
 
-    let renderer: import('three').WebGLRenderer | null = null;
+    let rendererInstance: import('three').WebGLRenderer | null = null;
     let controls: OrbitControlsType | null = null;
     let geometryToDispose: import('three').BufferGeometry | null = null;
     let materialToDispose: import('three').Material | null = null;
     let onKeyDown: ((e: KeyboardEvent) => void) | null = null;
     let onKeyUp: ((e: KeyboardEvent) => void) | null = null;
+    let transition:
+      | {
+          start: number;
+          duration: number;
+          fromPosition: import('three').Vector3;
+          toPosition: import('three').Vector3;
+          fromTarget: import('three').Vector3;
+          toTarget: import('three').Vector3;
+          resolve: () => void;
+        }
+      | null = null;
 
     const boot = async () => {
       try {
@@ -150,21 +227,22 @@ export default function SplatViewer({
         scene.background = new THREE.Color('#020a12');
 
         const camera = new THREE.PerspectiveCamera(42, 1, 0.001, 100);
+        let initialPose: CameraPose | null = null;
 
-        renderer = new THREE.WebGLRenderer({
+        rendererInstance = new THREE.WebGLRenderer({
           antialias: true,
           alpha: false,
           powerPreference: 'high-performance',
         });
-        renderer.outputColorSpace = THREE.SRGBColorSpace;
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-        renderer.domElement.style.width = '100%';
-        renderer.domElement.style.height = '100%';
-        renderer.domElement.style.display = 'block';
+        rendererInstance.outputColorSpace = THREE.SRGBColorSpace;
+        rendererInstance.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        rendererInstance.domElement.style.width = '100%';
+        rendererInstance.domElement.style.height = '100%';
+        rendererInstance.domElement.style.display = 'block';
 
-        canvasHost.replaceChildren(renderer.domElement);
+        canvasHost.replaceChildren(rendererInstance.domElement);
 
-        controls = new OrbitControls(camera, renderer.domElement);
+        controls = new OrbitControls(camera, rendererInstance.domElement);
         controlsRef.current = controls;
         controls.enableDamping = true;
         controls.dampingFactor = 0.08;
@@ -206,8 +284,28 @@ export default function SplatViewer({
         const points = new THREE.Points(loadedGeometry, pointsMaterial);
         scene.add(points);
 
+        const readPose = (): CameraPose => ({
+          position: [camera.position.x, camera.position.y, camera.position.z],
+          target: [controls!.target.x, controls!.target.y, controls!.target.z],
+        });
+
+        const animateToPose = (pose: CameraPose, duration = 900) => {
+          transition?.resolve();
+          return new Promise<void>((resolve) => {
+            transition = {
+              start: performance.now(),
+              duration,
+              fromPosition: camera.position.clone(),
+              toPosition: new THREE.Vector3(...pose.position),
+              fromTarget: controls!.target.clone(),
+              toTarget: new THREE.Vector3(...pose.target),
+              resolve,
+            };
+          });
+        };
+
         const fitCamera = () => {
-          if (!renderer) return;
+          if (!rendererInstance) return;
 
           const width = Math.max(canvasHost.clientWidth, 1);
           const height = Math.max(canvasHost.clientHeight, 1);
@@ -228,15 +326,76 @@ export default function SplatViewer({
           controls?.target.copy(center);
           controls?.update();
 
-          renderer.setSize(width, height, false);
-          renderer.render(scene, camera);
+          initialPose = readPose();
+          rendererInstance.setSize(width, height, false);
+          rendererInstance.render(scene, camera);
+        };
+
+        const moveCamera = (direction: 'left' | 'right' | 'forward' | 'back') => {
+          if (!controls) return;
+          const speed = radius * 0.18;
+          const forward = camera.getWorldDirection(new THREE.Vector3());
+          const right = new THREE.Vector3().crossVectors(forward, camera.up).normalize();
+          if (direction === 'forward') {
+            camera.position.addScaledVector(forward, speed);
+            controls.target.addScaledVector(forward, speed);
+          }
+          if (direction === 'back') {
+            camera.position.addScaledVector(forward, -speed);
+            controls.target.addScaledVector(forward, -speed);
+          }
+          if (direction === 'left') {
+            camera.position.addScaledVector(right, -speed);
+            controls.target.addScaledVector(right, -speed);
+          }
+          if (direction === 'right') {
+            camera.position.addScaledVector(right, speed);
+            controls.target.addScaledVector(right, speed);
+          }
+          controls.update();
         };
 
         fitCamera();
         resizeObserver = new ResizeObserver(fitCamera);
         resizeObserver.observe(canvasHost);
 
-        const MOVE_KEYS = new Set(['KeyW','KeyS','KeyA','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight']);
+        actionApiRef.current = {
+          async goToHotspot(hotspotId) {
+            const hotspot = hotspotMap.get(hotspotId);
+            if (!hotspot) return;
+            await animateToPose(hotspot.cameraPose);
+          },
+          moveCamera(direction) {
+            moveCamera(direction);
+          },
+          zoomCamera(direction) {
+            if (!controls) return;
+            const zoomScale = direction === 'in' ? 1.22 : 0.82;
+            if (direction === 'in') {
+              controls.dollyIn(zoomScale);
+            } else {
+              controls.dollyOut(1 / zoomScale);
+            }
+            controls.update();
+          },
+          resetCamera() {
+            if (!initialPose) return;
+            void animateToPose(initialPose, 750);
+          },
+          setScenario() {},
+          compareScenario() {},
+        };
+
+        const MOVE_KEYS = new Set([
+          'KeyW',
+          'KeyS',
+          'KeyA',
+          'KeyD',
+          'ArrowUp',
+          'ArrowDown',
+          'ArrowLeft',
+          'ArrowRight',
+        ]);
         const keysDown = new Set<string>();
         onKeyDown = (e: KeyboardEvent) => {
           if (MOVE_KEYS.has(e.code)) e.preventDefault();
@@ -247,9 +406,38 @@ export default function SplatViewer({
         window.addEventListener('keyup', onKeyUp);
 
         const animate = () => {
-          if (isDisposed || !renderer) return;
+          if (isDisposed || !rendererInstance || !controls) return;
 
-          if (controls && keysDown.size > 0) {
+          if (transition) {
+            const progress = Math.min(
+              1,
+              (performance.now() - transition.start) / transition.duration,
+            );
+            const eased = 1 - (1 - progress) ** 3;
+            camera.position.set(
+              transition.fromPosition.x +
+                (transition.toPosition.x - transition.fromPosition.x) * eased,
+              transition.fromPosition.y +
+                (transition.toPosition.y - transition.fromPosition.y) * eased,
+              transition.fromPosition.z +
+                (transition.toPosition.z - transition.fromPosition.z) * eased,
+            );
+            controls.target.set(
+              transition.fromTarget.x +
+                (transition.toTarget.x - transition.fromTarget.x) * eased,
+              transition.fromTarget.y +
+                (transition.toTarget.y - transition.fromTarget.y) * eased,
+              transition.fromTarget.z +
+                (transition.toTarget.z - transition.fromTarget.z) * eased,
+            );
+            if (progress >= 1) {
+              const resolve = transition.resolve;
+              transition = null;
+              resolve();
+            }
+          }
+
+          if (keysDown.size > 0) {
             const speed = radius * 0.014;
             const forward = camera.getWorldDirection(new THREE.Vector3());
             const right = new THREE.Vector3().crossVectors(forward, camera.up).normalize();
@@ -271,8 +459,8 @@ export default function SplatViewer({
             }
           }
 
-          controls?.update();
-          renderer.render(scene, camera);
+          controls.update();
+          rendererInstance.render(scene, camera);
           animationFrameId = window.requestAnimationFrame(animate);
         };
 
@@ -297,10 +485,52 @@ export default function SplatViewer({
       controlsRef.current = null;
       geometryToDispose?.dispose();
       materialToDispose?.dispose();
-      renderer?.dispose();
+      rendererInstance?.dispose();
+      actionApiRef.current = noopViewerApi;
       canvasHost.replaceChildren();
     };
-  }, [splatUrl, usePlyRenderer]);
+  }, [hotspotMap, splatUrl, usePlyRenderer]);
+
+  useEffect(() => {
+    if (!usePlyRenderer) {
+      return;
+    }
+
+    const MOVE_KEYS = new Set([
+      'KeyW',
+      'KeyS',
+      'KeyA',
+      'KeyD',
+      'ArrowUp',
+      'ArrowDown',
+      'ArrowLeft',
+      'ArrowRight',
+      'KeyQ',
+      'KeyE',
+      'Space',
+    ]);
+    const forward = (e: KeyboardEvent) => {
+      if (!MOVE_KEYS.has(e.code)) return;
+      e.preventDefault();
+      iframeRef.current?.contentWindow?.postMessage(
+        { type: 'splat-keydown', code: e.code },
+        '*',
+      );
+    };
+    const release = (e: KeyboardEvent) => {
+      if (!MOVE_KEYS.has(e.code)) return;
+      iframeRef.current?.contentWindow?.postMessage(
+        { type: 'splat-keyup', code: e.code },
+        '*',
+      );
+    };
+    window.addEventListener('keydown', forward);
+    window.addEventListener('keyup', release);
+    return () => {
+      window.removeEventListener('keydown', forward);
+      window.removeEventListener('keyup', release);
+    };
+  }, [usePlyRenderer]);
 
   useEffect(() => {
     if (!handControlEnabled || viewerState !== 'ready') return;
@@ -344,7 +574,7 @@ export default function SplatViewer({
 
     const drawLandmarks = (
       landmarks: import('@mediapipe/tasks-vision').NormalizedLandmark[] | undefined,
-      MediaPipe: typeof import('@mediapipe/tasks-vision'),
+      mediaPipe: typeof import('@mediapipe/tasks-vision'),
     ) => {
       const overlay = videoOverlayRef.current;
       const video = videoRef.current;
@@ -361,8 +591,8 @@ export default function SplatViewer({
 
       if (!landmarks) return;
 
-      drawingUtils ??= new MediaPipe.DrawingUtils(context);
-      drawingUtils.drawConnectors(landmarks, MediaPipe.HandLandmarker.HAND_CONNECTIONS, {
+      drawingUtils ??= new mediaPipe.DrawingUtils(context);
+      drawingUtils.drawConnectors(landmarks, mediaPipe.HandLandmarker.HAND_CONNECTIONS, {
         color: 'rgba(0, 212, 180, 0.85)',
         lineWidth: 2,
       });
@@ -377,10 +607,7 @@ export default function SplatViewer({
     const boot = async () => {
       try {
         if (!window.isSecureContext && location.hostname !== 'localhost') {
-          updateHandStatus(
-            'error',
-            'Webcam access requires HTTPS or localhost.',
-          );
+          updateHandStatus('error', 'Webcam access requires HTTPS or localhost.');
           return;
         }
         if (!navigator.mediaDevices?.getUserMedia) {
@@ -389,15 +616,15 @@ export default function SplatViewer({
         }
 
         updateHandStatus('initializing', 'Loading MediaPipe hand tracking…');
-        const MediaPipe = await import('@mediapipe/tasks-vision');
+        const mediaPipe = await import('@mediapipe/tasks-vision');
         if (isDisposed) return;
 
-        const vision = await MediaPipe.FilesetResolver.forVisionTasks(
+        const vision = await mediaPipe.FilesetResolver.forVisionTasks(
           HAND_LANDMARKER_WASM_URL,
         );
         if (isDisposed) return;
 
-        handLandmarker = await MediaPipe.HandLandmarker.createFromOptions(vision, {
+        handLandmarker = await mediaPipe.HandLandmarker.createFromOptions(vision, {
           baseOptions: {
             modelAssetPath: HAND_LANDMARKER_MODEL_URL,
             delegate: 'GPU',
@@ -450,12 +677,9 @@ export default function SplatViewer({
             return;
           }
 
-          const result = handLandmarker.detectForVideo(
-            currentVideo,
-            performance.now(),
-          );
+          const result = handLandmarker.detectForVideo(currentVideo, performance.now());
           const landmarks = result.landmarks[0];
-          drawLandmarks(landmarks, MediaPipe);
+          drawLandmarks(landmarks, mediaPipe);
 
           if (!landmarks?.length) {
             resetGestureState();
@@ -477,9 +701,18 @@ export default function SplatViewer({
           );
           const handScale =
             (
-              Math.hypot(landmarks[0].x - landmarks[5].x, landmarks[0].y - landmarks[5].y) +
-              Math.hypot(landmarks[0].x - landmarks[9].x, landmarks[0].y - landmarks[9].y) +
-              Math.hypot(landmarks[0].x - landmarks[17].x, landmarks[0].y - landmarks[17].y)
+              Math.hypot(
+                landmarks[0].x - landmarks[5].x,
+                landmarks[0].y - landmarks[5].y,
+              ) +
+              Math.hypot(
+                landmarks[0].x - landmarks[9].x,
+                landmarks[0].y - landmarks[9].y,
+              ) +
+              Math.hypot(
+                landmarks[0].x - landmarks[17].x,
+                landmarks[0].y - landmarks[17].y,
+              )
             ) / 3;
 
           const smoothedCenter = gestureStateRef.current.smoothedCenter
@@ -533,14 +766,11 @@ export default function SplatViewer({
                 controls.update();
               } else {
                 const zoomDelta = clamp(scaleDelta * 12, -0.48, 0.48);
-                sendSplatGesture(
-                  splatWindow,
-                  {
-                    type: 'splat-hand-control',
-                    action: 'zoom',
-                    delta: zoomDelta,
-                  },
-                );
+                sendSplatGesture(splatWindow, {
+                  type: 'splat-hand-control',
+                  action: 'zoom',
+                  delta: zoomDelta,
+                });
               }
             }
             updateHandStatus(
@@ -562,26 +792,17 @@ export default function SplatViewer({
                 controls.rotateUp(orbitY);
                 controls.update();
               } else {
-                sendSplatGesture(
-                  splatWindow,
-                  {
-                    type: 'splat-hand-control',
-                    action: 'orbit',
-                    dx: orbitX * 1.8,
-                    dy: orbitY * 1.8,
-                  },
-                );
+                sendSplatGesture(splatWindow, {
+                  type: 'splat-hand-control',
+                  action: 'orbit',
+                  dx: orbitX * 1.8,
+                  dy: orbitY * 1.8,
+                });
               }
             }
-            updateHandStatus(
-              'tracking',
-              'Hand detected. Move to orbit, pinch to zoom.',
-            );
+            updateHandStatus('tracking', 'Hand detected. Move to orbit, pinch to zoom.');
           } else {
-            updateHandStatus(
-              'tracking',
-              'Hand detected. Move to orbit, pinch to zoom.',
-            );
+            updateHandStatus('tracking', 'Hand detected. Move to orbit, pinch to zoom.');
           }
 
           animationFrameId = window.requestAnimationFrame(step);
@@ -668,7 +889,7 @@ export default function SplatViewer({
       >
         <button
           type="button"
-          onClick={() => setHandControlEnabled(current => !current)}
+          onClick={() => setHandControlEnabled((current) => !current)}
           disabled={viewerState !== 'ready'}
           style={{
             fontFamily: 'var(--font-mono)',
@@ -809,4 +1030,6 @@ export default function SplatViewer({
       ) : null}
     </div>
   );
-}
+});
+
+export default SplatViewer;
