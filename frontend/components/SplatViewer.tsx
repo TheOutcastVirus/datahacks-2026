@@ -84,6 +84,30 @@ const PAN_DEADZONE = 0.16;
 const PAN_NORMALIZATION_FLOOR = 0.085;
 const PAN_GAIN = 0.018;
 const SCALE_ZOOM_DEADZONE = 0.0025;
+/** Normalized coords: wrist/thumb must stay inside this margin or we stop (hand leaving frame). */
+const HAND_FRAME_MARGIN = 0.04;
+/** |cos(thumb angle)| must exceed this to count as left vs right; otherwise stop (ambiguous thumb). */
+const THUMB_COS_THRESHOLD = 0.58;
+
+function handLandmarksUsableForThumbSteer(
+  landmarks: import('@mediapipe/tasks-vision').NormalizedLandmark[],
+): boolean {
+  for (const index of [0, 4] as const) {
+    const p = landmarks[index];
+    if (!p) return false;
+    if (p.visibility != null && p.visibility < 0.45) return false;
+    if (
+      p.x < HAND_FRAME_MARGIN ||
+      p.x > 1 - HAND_FRAME_MARGIN ||
+      p.y < HAND_FRAME_MARGIN ||
+      p.y > 1 - HAND_FRAME_MARGIN
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 const FLOOD_CALIBRATION_BY_URL: Record<string, FloodCalibration> = {
   '/Cabbage-mvs_1012_04.ply': {
     startY: 0.1356126070022583,
@@ -1047,7 +1071,16 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
     let handLandmarker: import('@mediapipe/tasks-vision').HandLandmarker | null = null;
     let drawingUtils: import('@mediapipe/tasks-vision').DrawingUtils | null = null;
 
+    const releaseThumbKeys = () => {
+      const held = thumbKeyRef.current;
+      if (!held) return;
+      window.dispatchEvent(new KeyboardEvent('keyup', { code: held, bubbles: true }));
+      iframeRef.current?.contentWindow?.postMessage({ type: 'splat-keyup', code: held }, '*');
+      thumbKeyRef.current = null;
+    };
+
     const resetGestureState = () => {
+      releaseThumbKeys();
       gestureStateRef.current = {
         smoothedCenter: null,
         smoothedHandScale: null,
@@ -1239,6 +1272,16 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
             return;
           }
 
+          if (!handLandmarksUsableForThumbSteer(landmarks)) {
+            resetGestureState();
+            updateHandStatus(
+              'no-hand',
+              'Hand out of frame — keep wrist and thumb visible.',
+            );
+            animationFrameId = window.requestAnimationFrame(step);
+            return;
+          }
+
           const palmCenter = PALM_INDICES.reduce(
             (sum, index) => ({
               x: sum.x + landmarks[index].x / PALM_INDICES.length,
@@ -1270,9 +1313,15 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
             landmarks[4].x - landmarks[0].x,
           );
           const thumbCos = Math.cos(thumbAngle);
-          // thumbCos > 0.5 = thumb pointing raw-right = screen-left → ArrowLeft
-          // thumbCos < -0.5 = thumb pointing raw-left = screen-right → ArrowRight
-          const wantedKey = thumbCos > 0.5 ? 'ArrowLeft' : thumbCos < -0.5 ? 'ArrowRight' : null;
+          // thumbCos > threshold = thumb pointing raw-right = screen-left → ArrowLeft
+          // thumbCos < -threshold = thumb pointing raw-left = screen-right → ArrowRight
+          // Between: ambiguous — release keys (handled below via wantedKey === null)
+          const wantedKey =
+            thumbCos > THUMB_COS_THRESHOLD
+              ? 'ArrowLeft'
+              : thumbCos < -THUMB_COS_THRESHOLD
+                ? 'ArrowRight'
+                : null;
 
           gestureStateRef.current = {
             smoothedCenter,
@@ -1334,11 +1383,6 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
       isDisposed = true;
       window.cancelAnimationFrame(animationFrameId);
       resetGestureState();
-      if (thumbKeyRef.current) {
-        window.dispatchEvent(new KeyboardEvent('keyup', { code: thumbKeyRef.current, bubbles: true }));
-        iframeRef.current?.contentWindow?.postMessage({ type: 'splat-keyup', code: thumbKeyRef.current }, '*');
-        thumbKeyRef.current = null;
-      }
       drawingUtils?.close();
       handLandmarker?.close();
       if (stream) {

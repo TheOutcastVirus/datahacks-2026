@@ -2,14 +2,18 @@ import { NextResponse } from 'next/server';
 
 const ASSEMBLYAI_TOKEN_URL = 'https://streaming.assemblyai.com/v3/token';
 
+function getAssemblyApiKey() {
+  return process.env.ASSEMBLYAI_API_KEY ?? process.env.ASSEMBLYAPI;
+}
+
 export const runtime = 'nodejs';
 
 export async function GET() {
-  const apiKey = process.env.ASSEMBLYAI_API_KEY;
+  const apiKey = getAssemblyApiKey();
 
   if (!apiKey) {
     return NextResponse.json(
-      { error: 'Missing AssemblyAI_API_KEY configuration.' },
+      { error: 'Missing AssemblyAI configuration. Set ASSEMBLYAI_API_KEY or ASSEMBLYAPI.' },
       { status: 503 },
     );
   }

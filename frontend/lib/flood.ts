@@ -1,6 +1,9 @@
 import { Euler, Matrix4, Vector3 } from 'three';
 
-import type { FloodCalibration } from '@/lib/locations';
+export type FloodCalibration = {
+  startY: number;
+  endY: number;
+};
 
 export type Bounds3D = {
   min: { x: number; y: number; z: number };

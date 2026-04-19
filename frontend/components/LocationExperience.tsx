@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 
-import type { LocationRecord, ScenarioRecord } from '@/lib/locations';
+import type { LocationRecord, ScenarioRecord, SceneHotspot } from '@/lib/locations';
 import {
   parseVoiceIntent,
 } from '@/lib/scene-command-catalog';
@@ -18,11 +18,12 @@ import {
   buildUnknownResponse,
 } from '@/lib/voice-responses';
 import type { ViewerCommandApi, ViewerState } from '@/lib/viewer-types';
+import type { ChatResponse, Risk } from '@/app/api/voice/chat/route';
 
 import VoiceAssistantBar from '@/components/VoiceAssistantBar';
 import SplatViewer from '@/components/SplatViewer';
 import SeaLevelTimeline from '@/components/SeaLevelTimeline';
-import { useAssemblyAISpeechToText } from '@/hooks/useAssemblyAISpeechToText';
+import { useLocalSpeechToText } from '@/hooks/useLocalSpeechToText';
 import { useVoicePlayback } from '@/hooks/useVoicePlayback';
 
 const MAX_VISUALIZED_RISE_METERS = 26.0;
@@ -58,7 +59,7 @@ function clamp(value: number, min: number, max: number) {
 }
 
 export default function LocationExperience({ location }: { location: LocationRecord }) {
-  const fallbackHotspot = {
+  const fallbackHotspot: SceneHotspot = {
     id: 'overview',
     name: location.name,
     aliases: [location.name.toLowerCase(), 'overview', 'scene'],
@@ -79,7 +80,7 @@ export default function LocationExperience({ location }: { location: LocationRec
   };
   const hotspots = location.hotspots?.length ? location.hotspots : [fallbackHotspot];
   const scenarios = location.scenarios?.length ? location.scenarios : [fallbackScenario];
-  const normalizedLocation = {
+  const normalizedLocation: LocationRecord = {
     ...location,
     hotspots,
     scenarios,
@@ -92,6 +93,8 @@ export default function LocationExperience({ location }: { location: LocationRec
   const [agentResponse, setResponse] = useState(
     'Use your voice to move around the scene, switch scenarios, and ask what the model is showing.',
   );
+  const [risks, setRisks] = useState<Risk[]>([]);
+  const [isThinking, setIsThinking] = useState(false);
   const [activeHotspotId, setActiveHotspotId] = useState(normalizedLocation.defaultHotspotId);
   const [activeScenarioId, setActiveScenarioId] = useState(normalizedLocation.scenarios[0].id);
   const [compareScenarioIds, setCompareScenarioIds] = useState<
@@ -101,7 +104,40 @@ export default function LocationExperience({ location }: { location: LocationRec
   const [riseMeters, setRiseMeters] = useState(normalizedLocation.scene.rise);
   const [timelineVisible, setTimelineVisible] = useState(true);
   const [voiceVisible, setVoiceVisible] = useState(true);
-  const speech = useAssemblyAISpeechToText([
+  const { speak } = useVoicePlayback();
+
+  const speakIfEnabled = async (text: string) => {
+    if (!speakerEnabled) return;
+    await speak(text);
+  };
+
+  const handleEndOfTurn = async (transcript: string) => {
+    setIsThinking(true);
+    try {
+      const res = await fetch('/api/voice/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transcript,
+          locationName: normalizedLocation.name,
+          region: normalizedLocation.region,
+          year: sliderYear,
+          riseMeters,
+        }),
+      });
+      const data = (await res.json()) as ChatResponse;
+      setResponse(data.reply);
+      setRisks(data.risks ?? []);
+      if (res.ok) await speakIfEnabled(data.reply);
+    } catch (err) {
+      setResponse('Could not reach the assistant. Check NVIDIA_API_KEY.');
+      console.error('[voice/chat]', err);
+    } finally {
+      setIsThinking(false);
+    }
+  };
+
+  const speech = useLocalSpeechToText([
     'show 2050',
     'show baseline',
     'show worst case',
@@ -112,18 +148,13 @@ export default function LocationExperience({ location }: { location: LocationRec
     'what floods first here',
     'what data is this based on',
     ...hotspots.flatMap((hotspot) => [hotspot.name, ...hotspot.aliases]),
-  ]);
-  const { speak } = useVoicePlayback();
+  ], handleEndOfTurn);
 
   const activeHotspot =
     hotspots.find((hotspot) => hotspot.id === activeHotspotId) ?? hotspots[0];
   const activeScenario =
     scenarios.find((scenario) => scenario.id === activeScenarioId) ?? scenarios[0];
 
-  const speakIfEnabled = async (text: string) => {
-    if (!speakerEnabled) return;
-    await speak(text);
-  };
 
   const runVoiceCommand = async (rawTranscript: string) => {
     const intent = parseVoiceIntent(normalizedLocation, rawTranscript);
@@ -351,11 +382,13 @@ export default function LocationExperience({ location }: { location: LocationRec
               agentResponse={agentResponse}
               isRecording={speech.state === 'recording'}
               isSupported={speech.isSupported}
-              isWorking={speech.state === 'connecting' || speech.state === 'stopping'}
+              isWorking={speech.state === 'connecting' || speech.state === 'stopping' || isThinking}
+              risks={risks}
               onMicClick={handleMicClick}
               onToggleSpeaker={() => setSpeakerEnabled((current) => !current)}
               onHide={() => setVoiceVisible(false)}
               speakerEnabled={speakerEnabled}
+              statusIsError={Boolean(speech.error)}
               statusLabel={
                 speech.error
                   ? speech.error
