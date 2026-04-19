@@ -3,6 +3,7 @@
 import { useState } from 'react';
 
 import SplatViewer from '@/components/SplatViewer';
+import { getSeaLevel } from '@/lib/sea-level-data';
 import type { LocationRecord } from '@/lib/locations';
 
 const MAX_VISUALIZED_RISE_METERS = 2.0;
@@ -32,7 +33,8 @@ export default function LocationScene({
 }: {
   location: LocationRecord;
 }) {
-  const [riseMeters, setRiseMeters] = useState(location.scene.rise);
+  const [sliderYear, setSliderYear] = useState(2026);
+  const riseMeters = getSeaLevel(sliderYear);
   const floodProgress = clamp(riseMeters / MAX_VISUALIZED_RISE_METERS, 0, 1);
   const riseColor = getRiseColor(floodProgress);
 
@@ -53,7 +55,7 @@ export default function LocationScene({
           +{riseMeters.toFixed(2)}
           <span className="stats-rise-unit">m</span>
         </div>
-        <div className="stats-year">Manual Control</div>
+        <div className="stats-year">{sliderYear}</div>
         <div className="stats-scenario">
           {location.scene.label}. Drag the slider to raise water through the scan.
         </div>
@@ -66,20 +68,20 @@ export default function LocationScene({
               id="water-level-slider"
               className="stats-slider"
               type="range"
-              min={0}
-              max={MAX_VISUALIZED_RISE_METERS}
-              step={0.01}
-              value={riseMeters}
+              min={2026}
+              max={2100}
+              step={1}
+              value={sliderYear}
               onChange={event => {
-                setRiseMeters(Number.parseFloat(event.currentTarget.value));
+                setSliderYear(Number.parseInt(event.currentTarget.value, 10));
               }}
-              aria-label="Water level"
+              aria-label="Year"
             />
             <div className="stats-slider-value">{Math.round(floodProgress * 100)}%</div>
           </div>
           <div className="stats-slider-scale">
-            <span>Dry</span>
-            <span>Flooded</span>
+            <span>2026</span>
+            <span>2100</span>
           </div>
         </div>
       </div>

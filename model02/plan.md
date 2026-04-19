@@ -53,7 +53,7 @@ The original plan assumed a much broader forcing inventory, including floats, NE
 - a reconciled monthly analysis dataset built from the retained active sources
 - monthly reconstruction-ready model inputs for relative sea-level analysis
 - monthly reconstruction/export products for stations that have validated modern overlap support
-- a separate annual training, backtest, and scenario-projection track for Portland
+- a separate annual training, backtest, and century-projection track for Portland
 - projections only after the reduced-stack model is stable, validated, and honest about predictor availability
 
 ---
@@ -438,7 +438,7 @@ Sojs should distinguish between:
 - test whether the reduced feature matrix outperforms simple trend or persistence baselines
 - document periods where the active stack clearly fails to explain local variability
 - validate any post-2017 continuation variant separately before merging it into the monthly long-horizon export path
-- verify the annual Portland model continues to beat a trend-only baseline on rolling holdouts before publishing more ambitious annual scenarios
+- verify the annual Portland model continues to beat a trend-only baseline on rolling holdouts before publishing more ambitious annual century projections
 
 ### 11.2 Success criterion
 
@@ -470,7 +470,7 @@ The first milestone is not “solve the full Maine sea-level budget.” The firs
 - baseline hindcast results
 - monthly prediction exports for validated stations
 - annual means derived from the monthly prediction exports where monthly products exist
-- Portland annual training, backtest, and scenario-projection products from the separate annual track
+- Portland annual training, backtest, and century-projection products from the separate annual track
 - projections only if the reduced-stack validation justifies them and the predictor regime is explicit
 
 ---
