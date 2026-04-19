@@ -756,7 +756,8 @@ async function main() {
     }
     trajTotalLength = trajArcLengths[trajArcLengths.length - 1];
     camera = cameras[0];
-    defaultViewMatrix = getViewMatrix(camera);
+    const initT = trajArcLengths[sampledTrajectoryIndices[0]];
+    defaultViewMatrix = getTrajectoryViewMatrix(initT);
     viewMatrix = defaultViewMatrix.slice();
 
     try {
@@ -977,6 +978,8 @@ async function main() {
 
     const defaultXyzOffset = isAnnaberg ? [0, 0, 8] : [0, 0, 0];
     xyzOffset = defaultXyzOffset.slice();
+    const initZoom = parseFloat(params.get("zoom") || "0");
+    if (!isNaN(initZoom)) zoomOffset = initZoom;
 
     const applyResetGesture = () => {
         carousel = false;

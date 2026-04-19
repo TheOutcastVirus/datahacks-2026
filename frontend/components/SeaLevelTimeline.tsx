@@ -15,7 +15,6 @@ type Phase = {
   headline: string;
   description: string;
   impacts: string[];
-  framing: string;
   color: string;
 };
 
@@ -25,7 +24,6 @@ const PHASES: Phase[] = [
     headline: 'Early Warning Signs',
     description: 'Thermal expansion and accelerating ice melt begin raising sea levels. Changes are subtle but measurable at tide gauges worldwide.',
     impacts: ['King tides flood streets more often', 'Coastal insurance premiums rising', 'Storm surge damage increases'],
-    framing: 'Ankle-height rise — detectable only by instruments',
     color: '#00d4b4',
   },
   {
@@ -33,7 +31,6 @@ const PHASES: Phase[] = [
     headline: 'Coastal Stress',
     description: 'Sea level rise accelerates as ice sheet dynamics become harder to reverse. Infrastructure built for the 20th century begins to strain.',
     impacts: ['Storm surge damage doubles', 'Coastal wetlands losing ground fast', 'Billions in property at elevated risk'],
-    framing: 'Shin-height rise — streets flood on sunny days',
     color: '#fbbf24',
   },
   {
@@ -41,7 +38,6 @@ const PHASES: Phase[] = [
     headline: 'Managed Retreat Begins',
     description: 'Coastal communities face a stark choice: protect, adapt, or relocate. The economics of living near the ocean fundamentally shift.',
     impacts: ['Major ports require costly redesign', 'Seawall construction accelerates globally', 'Millions become climate-displaced'],
-    framing: 'Knee-height rise — storm surge becomes catastrophic',
     color: '#f97316',
   },
   {
@@ -49,7 +45,6 @@ const PHASES: Phase[] = [
     headline: 'Permanent Transformation',
     description: 'Coastlines look fundamentally different. Decisions made in the 2020s–2040s determine which cities survive and which are lost to the sea.',
     impacts: ['Permanent inundation of low-lying areas', 'Global food supply disrupted', 'Coastal cultures and ecosystems lost'],
-    framing: 'Waist-height rise — irreversible coastline changes',
     color: '#ef4444',
   },
 ];
@@ -74,7 +69,7 @@ export default function SeaLevelTimeline({ sliderYear, riseMeters, onYearChange,
       bottom: 24,
       right: 16,
       zIndex: 30,
-      width: 300,
+      width: 460,
       background: 'rgba(2, 8, 16, 0.95)',
       border: `1px solid ${phase.color}55`,
       backdropFilter: 'blur(16px)',
@@ -85,35 +80,30 @@ export default function SeaLevelTimeline({ sliderYear, riseMeters, onYearChange,
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px 8px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: phase.color, transition: 'color 0.6s ease' }}>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', color: phase.color, transition: 'color 0.6s ease' }}>
           Sea Level Rise
         </span>
         <button type="button" onClick={onHide} aria-label="Hide" style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: 16, cursor: 'pointer', padding: 0, lineHeight: 1 }}>&#x00d7;</button>
       </div>
 
       {/* Year + Rise */}
-      <div style={{ padding: '12px 14px 0', display: 'flex', alignItems: 'flex-end', gap: 14 }}>
+      <div style={{ padding: '16px 18px 0', display: 'flex', alignItems: 'flex-end', gap: 20 }}>
         <div>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: 44, fontWeight: 300, lineHeight: 1, color: phase.color, transition: 'color 0.6s ease' }}>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: 68, fontWeight: 300, lineHeight: 1, color: phase.color, transition: 'color 0.6s ease' }}>
             {sliderYear}
           </div>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'rgba(255,255,255,0.25)', letterSpacing: '0.15em', marginTop: 3 }}>YEAR</div>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'rgba(255,255,255,0.25)', letterSpacing: '0.15em', marginTop: 4 }}>YEAR</div>
         </div>
-        <div style={{ marginBottom: 6 }}>
-          <div style={{ fontSize: 22, fontWeight: 300, color: '#d6f0f8' }}>
-            +{riseMeters.toFixed(2)}<span style={{ fontSize: 12, opacity: 0.45, marginLeft: 3 }}>m</span>
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 34, fontWeight: 300, color: '#d6f0f8' }}>
+            +{riseMeters.toFixed(2)}<span style={{ fontSize: 18, opacity: 0.45, marginLeft: 5 }}>m</span>
           </div>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)', marginTop: 1 }}>{feet} ft</div>
+          <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.28)', marginTop: 3 }}>{feet} ft</div>
         </div>
-      </div>
-
-      {/* Framing */}
-      <div style={{ padding: '5px 14px 10px', fontSize: 11, color: phase.color, opacity: 0.75, fontStyle: 'italic', transition: 'color 0.6s ease' }}>
-        {phase.framing}
       </div>
 
       {/* Slider + milestones */}
-      <div style={{ padding: '0 14px 4px' }}>
+      <div style={{ padding: '10px 18px 4px' }}>
         <input
           type="range"
           min={2026}
@@ -144,16 +134,16 @@ export default function SeaLevelTimeline({ sliderYear, riseMeters, onYearChange,
       </div>
 
       {/* Phase info */}
-      <div style={{ margin: '8px 14px 14px', padding: '10px 12px', background: 'rgba(255,255,255,0.03)', borderLeft: `2px solid ${phase.color}88`, transition: 'border-color 0.6s ease' }}>
-        <div style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, color: '#d6f0f8', marginBottom: 6, letterSpacing: '0.01em' }}>
+      <div style={{ margin: '8px 18px 18px', padding: '12px 14px', background: 'rgba(255,255,255,0.03)', borderLeft: `2px solid ${phase.color}88`, transition: 'border-color 0.6s ease' }}>
+        <div style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontWeight: 600, color: '#d6f0f8', marginBottom: 8, letterSpacing: '0.01em' }}>
           {phase.headline}
         </div>
-        <div style={{ fontSize: 11, color: 'rgba(214,240,248,0.6)', lineHeight: 1.65, marginBottom: 8 }}>
+        <div style={{ fontSize: 14, color: 'rgba(214,240,248,0.6)', lineHeight: 1.7, marginBottom: 10 }}>
           {phase.description}
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {phase.impacts.map((impact) => (
-            <div key={impact} style={{ fontSize: 10, color: 'rgba(214,240,248,0.45)', display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+            <div key={impact} style={{ fontSize: 13, color: 'rgba(214,240,248,0.45)', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
               <span style={{ color: phase.color, opacity: 0.7, flexShrink: 0 }}>›</span>
               {impact}
             </div>

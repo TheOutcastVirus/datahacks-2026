@@ -276,7 +276,7 @@ body > div {
 /* ---- RIGHT PANEL STACK ---- */
 .right-panel-stack {
   position: absolute;
-  top: 16px;
+  top: 80px;
   right: 16px;
   z-index: 30;
   display: flex;

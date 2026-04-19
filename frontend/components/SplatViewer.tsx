@@ -341,7 +341,7 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
   const [handStatusDetail, setHandStatusDetail] = useState('Hand control off');
 
   const splatIframeSrc = useMemo(
-    () => `/splat/viewer.html?url=${encodeURIComponent(splatUrl)}`,
+    () => `/splat/viewer.html?url=${encodeURIComponent(splatUrl)}&zoom=${camDistRef.current}`,
     [splatUrl],
   );
 
@@ -1379,22 +1379,15 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
       initialRotApplied.current = false;
       return;
     }
-
-    if (!initialRotApplied.current && viewerState === 'ready') {
-      initialRotApplied.current = true;
-      applySplatRotation(rotX, rotY, rotZ);
-    }
-  }, [usePlyRenderer, viewerState, rotX, rotY, rotZ]);
+    // Splat iframe manages its own camera via COLMAP trajectory — skip rotation gestures
+    initialRotApplied.current = true;
+  }, [usePlyRenderer]);
 
   useEffect(() => {
-    if (usePlyRenderer) {
-      if (pointsRef.current) {
-        pointsRef.current.rotation.set(rotX, rotY, rotZ);
-        const lb = localBBoxRef.current;
-        if (lb) floodCalibrationRef.current = computeWorldYBounds(lb, rotX, rotY, rotZ);
-      }
-    } else if (initialRotApplied.current) {
-      applySplatRotation(rotX, rotY, rotZ);
+    if (usePlyRenderer && pointsRef.current) {
+      pointsRef.current.rotation.set(rotX, rotY, rotZ);
+      const lb = localBBoxRef.current;
+      if (lb) floodCalibrationRef.current = computeWorldYBounds(lb, rotX, rotY, rotZ);
     }
   }, [rotX, rotY, rotZ, usePlyRenderer]);
 

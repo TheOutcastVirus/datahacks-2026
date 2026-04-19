@@ -63,12 +63,7 @@
   /* hidden helper elements */
   #fps, #camid { display: none; }
 
-  #debug-panel {
-    display: block;
-    position: fixed;
-    top: 12px; right: 12px;
-    background: rgba(0,0,0,0.82);
-    border: 1px solid rgba(0,212,180,0.3);
+  #debug-panel-unused {
     border-radius: 8px;
     padding: 12px 16px;
     font-family: monospace;
@@ -91,8 +86,7 @@
     background: rgba(0,212,180,0.15); border: 1px solid rgba(0,212,180,0.4);
     color: #00d4b4; border-radius: 4px; padding: 3px 8px; cursor: pointer; font-family: monospace; font-size: 11px;
   }
-  #debug-panel .debug-hint { color: rgba(255,255,255,0.3); font-size: 10px; margin-top: 4px; }
-  #debug-panel .debug-info { color: rgba(0,212,180,0.5); font-size: 10px; margin-bottom: 8px; }
+
 </style>
 </head>
 <body>
@@ -108,20 +102,6 @@
 <span id="fps"></span>
 <span id="camid"></span>
 
-<div id="debug-panel">
-  <div style="margin-bottom:8px;font-size:11px;letter-spacing:0.1em;">⚙ WATER DEBUG <button type="button" id="dbg-minimize" style="float:right;background:none;border:none;color:rgba(0,212,180,0.6);cursor:pointer;font-size:13px;line-height:1;padding:0;">—</button></div>
-  <div id="debug-info" class="debug-info">sceneZMin: —</div>
-  <label>Baseline Z override</label>
-  <div class="debug-row">
-    <input type="number" id="dbg-baseline" step="0.1" placeholder="auto">
-    <button type="button" id="dbg-baseline-clear">auto</button>
-  </div>
-  <label>XYZ Offset Z</label>
-  <div class="debug-row">
-    <input type="number" id="dbg-z-offset" step="0.5" value="0">
-  </div>
-  <div class="debug-hint">` to toggle panel</div>
-</div>
 
 <script type="module" src="./main.js"></script>
 <script>
@@ -145,34 +125,6 @@
   [50, 250, 800, 2000].forEach(t => setTimeout(fireResize, t));
 
   window.__debugWater = { baselineOverride: null };
-  const panel = document.getElementById('debug-panel');
-  document.getElementById('dbg-minimize').addEventListener('click', () => {
-    panel.classList.add('minimized');
-  });
-  // Restore on backtick
-  document.addEventListener('keydown', e => {
-    if (e.key === '`') { panel.classList.remove('minimized'); setTimeout(refreshInfo, 50); }
-  });
-  function refreshInfo() {
-    const min = window.__debugWater._sceneZMin;
-    document.getElementById('debug-info').textContent =
-      min != null ? `sceneZMin: ${min.toFixed(4)}` : 'sceneZMin: loading…';
-  }
-  // Baseline override
-  document.getElementById('dbg-baseline').addEventListener('input', e => {
-    const v = parseFloat(e.target.value);
-    window.__debugWater.baselineOverride = isNaN(v) ? null : v;
-    refreshInfo();
-  });
-  document.getElementById('dbg-baseline-clear').addEventListener('click', () => {
-    document.getElementById('dbg-baseline').value = '';
-    window.__debugWater.baselineOverride = null;
-  });
-  // XYZ offset Z
-  document.getElementById('dbg-z-offset').addEventListener('input', e => {
-    const v = parseFloat(e.target.value);
-    if (!isNaN(v) && window.xyzOffset) window.xyzOffset[2] = v;
-  });
 </script>
 </body>
 </html>

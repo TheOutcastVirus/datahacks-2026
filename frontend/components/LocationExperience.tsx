@@ -79,7 +79,7 @@ export default function LocationExperience({ location }: { location: LocationRec
   const [sliderYear, setSliderYear] = useState(2026);
   const [riseMeters, setRiseMeters] = useState(normalizedLocation.scene.rise);
   const [timelineVisible, setTimelineVisible] = useState(true);
-  const [voiceVisible, setVoiceVisible] = useState(true);
+  const [voiceVisible, setVoiceVisible] = useState(false);
   const speech = useAssemblyAISpeechToText([
     'show 2050',
     'show baseline',
@@ -292,7 +292,7 @@ export default function LocationExperience({ location }: { location: LocationRec
           >Sea Level ▲</button>
         )}
 
-        <div className="right-panel-stack">
+        <div style={{ position: 'absolute', top: 16, right: 16, zIndex: 30 }}>
           {voiceVisible ? (
             <VoiceAssistantBar
               isRecording={speech.state === 'recording'}
@@ -323,20 +323,7 @@ export default function LocationExperience({ location }: { location: LocationRec
           )}
         </div>
 
-        <div className="attr-panel">
-          <div className="attr-title">Location</div>
-          <div className="attr-item attr-item-strong">{normalizedLocation.name}</div>
-          <div className="attr-item">{normalizedLocation.description}</div>
-          <div className="attr-title attr-title-spaced">Active Hotspot</div>
-          <div className="attr-item attr-item-strong">{activeHotspot.name}</div>
-          <div className="attr-item">{activeHotspot.description}</div>
-          <div className="attr-title attr-title-spaced">Data Sources</div>
-          {normalizedLocation.sources.map((source) => (
-            <div key={source} className="attr-item">
-              {source}
-            </div>
-          ))}
-        </div>
+
 
       </div>
     </>
