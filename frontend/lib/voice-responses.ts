@@ -1,4 +1,5 @@
 import type { LocationRecord, ScenarioRecord, SceneHotspot } from '@/lib/locations';
+import type { HazardMarker } from '@/lib/viewer-types';
 
 export function buildNavigationResponse(hotspot: SceneHotspot) {
   return {
@@ -67,6 +68,40 @@ export function buildHelpResponse(location: LocationRecord) {
   return {
     caption: 'Try “show 2050”, “zoom out”, or “go to the waterfront”.',
     speech: `You can say things like show 2050, zoom out, reset camera, or go to ${hotspotNames.join(', ')}.`,
+  };
+}
+
+export function buildHazardScanResponse(location: LocationRecord, hazards: HazardMarker[]) {
+  if (!hazards.length) {
+    return {
+      caption: 'No hazards available for this scene.',
+      speech: `I don't have a hazard scan for ${location.name} yet. I can still highlight flood exposure on the timeline.`,
+    };
+  }
+  const categoryCount: Record<string, number> = {};
+  for (const hazard of hazards) {
+    categoryCount[hazard.label] = (categoryCount[hazard.label] ?? 0) + 1;
+  }
+  const describeLabel = (label: string, count: number) => {
+    const pretty =
+      label === 'tall_structure' ? 'tall structure' :
+      label === 'flood_exposed' ? 'flood-exposed area' :
+      label === 'erosion_proxy' ? 'possible erosion-prone area' :
+      label.replace(/_/g, ' ');
+    return `${count} ${pretty}${count === 1 ? '' : 's'}`;
+  };
+  const ids = hazards.map((h) => h.id).join(', ');
+  const parts = Object.entries(categoryCount).map(([label, count]) =>
+    describeLabel(label, count),
+  );
+  const partsJoined =
+    parts.length <= 1
+      ? parts[0] ?? ''
+      : `${parts.slice(0, -1).join(', ')} and ${parts.slice(-1)[0]}`;
+  const top = [...hazards].sort((a, b) => b.severity - a.severity)[0];
+  return {
+    caption: `Scan complete — ${hazards.length} marker${hazards.length === 1 ? '' : 's'} placed.`,
+    speech: `Scan complete for ${location.name}. I marked ${partsJoined}, labeled ${ids}. The highest-severity marker is ${top.id}: ${top.summary}`,
   };
 }
 

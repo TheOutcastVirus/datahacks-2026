@@ -965,8 +965,11 @@ async function main() {
         zoomOffset -= delta;
     };
 
-    const applyPanGesture = (_dx, _dy) => {
-        // pan disabled — use arrow keys to traverse the trajectory
+    const applyPanGesture = (dx, dy) => {
+        carousel = false;
+        let inv = invert4(viewMatrix);
+        inv = translate4(inv, -dx, -dy, 0);
+        viewMatrix = invert4(inv);
     };
 
     const applyRollGesture = (delta) => {

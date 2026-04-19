@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "source": "maine_output.ply",
+  "bbox": { "yMin": -1.2, "yMax": 2.6, "floodY": 0.1 },
+  "hazards": [
+    {
+      "id": "A",
+      "label": "tall_structure",
+      "position": [-1.85, 1.9, 0.45],
+      "severity": 0.82,
+      "metrics": { "peakHeight": 1.9, "verticalExtentFraction": 0.78 },
+      "summary": "Tall structure: vertical peak rising well above surrounding terrain."
+    },
+    {
+      "id": "B",
+      "label": "flood_exposed",
+      "position": [1.2, 0.1, -0.9],
+      "severity": 0.74,
+      "metrics": { "belowFloodFraction": 0.72, "floodY": 0.1 },
+      "summary": "Flood-exposed: low-lying ground that sits below the mid-century flood plane."
+    },
+    {
+      "id": "C",
+      "label": "flood_exposed",
+      "position": [0.05, 0.1, 1.65],
+      "severity": 0.61,
+      "metrics": { "belowFloodFraction": 0.58, "floodY": 0.1 },
+      "summary": "Flood-exposed: shoreline bench below the modeled flood plane in worst-case scenarios."
+    },
+    {
+      "id": "D",
+      "label": "erosion_proxy",
+      "position": [-0.7, 0.35, -2.1],
+      "severity": 0.48,
+      "metrics": { "gradientMagnitude": 0.39 },
+      "summary": "Possible erosion-prone terrain: steep local height gradient (geometric proxy, not a damage call)."
+    }
+  ]
+}

@@ -8,10 +8,7 @@ export default function Home() {
       <header className="masthead">
         <div>
           <div className="eyebrow">Spatiotemporal Oceanographic Growth Simulator</div>
-          <h1 className="dashboard-title">Location Dashboard</h1>
-          <p className="dashboard-copy">
-            Launch scene demos and turn each Sojs view into a research-ready stakeholder brief.
-          </p>
+          <h1 className="dashboard-title">Location  Dashboard</h1>
         </div>
       </header>
 

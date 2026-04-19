@@ -10,6 +10,7 @@ import {
   buildCompareResponse,
   buildCurrentViewResponse,
   buildFloodRiskResponse,
+  buildHazardScanResponse,
   buildHelpResponse,
   buildNavigationResponse,
   buildScenarioResponse,
@@ -25,6 +26,26 @@ import { useAssemblyAISpeechToText } from '@/hooks/useAssemblyAISpeechToText';
 import { useVoicePlayback } from '@/hooks/useVoicePlayback';
 
 const MAX_VISUALIZED_RISE_METERS = 26.0;
+
+function MicIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+      <line x1="12" y1="19" x2="12" y2="23" />
+      <line x1="8" y1="23" x2="16" y2="23" />
+    </svg>
+  );
+}
 
 function describeIntent(intent: string) {
   return intent
@@ -68,7 +89,7 @@ export default function LocationExperience({ location }: { location: LocationRec
   const [viewerState, setViewerState] = useState<ViewerState>('loading');
   const [speakerEnabled, setSpeakerEnabled] = useState(true);
   const [, setCommandLabel] = useState('Ready');
-  const [, setResponse] = useState(
+  const [agentResponse, setResponse] = useState(
     'Use your voice to move around the scene, switch scenarios, and ask what the model is showing.',
   );
   const [activeHotspotId, setActiveHotspotId] = useState(normalizedLocation.defaultHotspotId);
@@ -79,7 +100,7 @@ export default function LocationExperience({ location }: { location: LocationRec
   const [sliderYear, setSliderYear] = useState(2026);
   const [riseMeters, setRiseMeters] = useState(normalizedLocation.scene.rise);
   const [timelineVisible, setTimelineVisible] = useState(true);
-  const [voiceVisible, setVoiceVisible] = useState(false);
+  const [voiceVisible, setVoiceVisible] = useState(true);
   const speech = useAssemblyAISpeechToText([
     'show 2050',
     'show baseline',
@@ -92,7 +113,7 @@ export default function LocationExperience({ location }: { location: LocationRec
     'what data is this based on',
     ...hotspots.flatMap((hotspot) => [hotspot.name, ...hotspot.aliases]),
   ]);
-  const { isPlaying: isVoicePlaying, speak } = useVoicePlayback();
+  const { speak } = useVoicePlayback();
 
   const activeHotspot =
     hotspots.find((hotspot) => hotspot.id === activeHotspotId) ?? hotspots[0];
@@ -222,6 +243,37 @@ export default function LocationExperience({ location }: { location: LocationRec
         await speakIfEnabled(nextResponse.speech);
         return;
       }
+      case 'scan_hazards': {
+        viewerRef.current?.setHazardsVisible(true);
+        const hazardList = viewerRef.current?.getHazards() ?? [];
+        const fallback = buildHazardScanResponse(normalizedLocation, hazardList);
+        setResponse(fallback.caption);
+        let speech = fallback.speech;
+        if (hazardList.length > 0) {
+          try {
+            const narrateResponse = await fetch('/api/hazards/narrate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                hazards: hazardList,
+                locationName: normalizedLocation.name,
+              }),
+            });
+            if (narrateResponse.ok) {
+              const narration = (await narrateResponse.json()) as {
+                spokenSummary?: string;
+              };
+              if (narration.spokenSummary?.trim()) {
+                speech = narration.spokenSummary.trim();
+              }
+            }
+          } catch {
+            // fall back to deterministic speech
+          }
+        }
+        await speakIfEnabled(speech);
+        return;
+      }
       case 'unknown': {
         const nextResponse = buildUnknownResponse();
         setResponse(nextResponse.caption);
@@ -270,6 +322,7 @@ export default function LocationExperience({ location }: { location: LocationRec
             ref={viewerRef}
             floodProgress={floodProgress}
             hotspots={hotspots}
+            hazardsUrl={normalizedLocation.hazardsUrl}
             onViewerStateChange={setViewerState}
             splatUrl={normalizedLocation.splatUrl}
             renderer={normalizedLocation.renderer ?? 'auto'}
@@ -292,11 +345,11 @@ export default function LocationExperience({ location }: { location: LocationRec
           >Sea Level ▲</button>
         )}
 
-        <div style={{ position: 'absolute', top: 16, right: 16, zIndex: 30 }}>
+        <div style={{ position: 'absolute', top: 120, right: 16, zIndex: 30 }}>
           {voiceVisible ? (
             <VoiceAssistantBar
+              agentResponse={agentResponse}
               isRecording={speech.state === 'recording'}
-              isSpeaking={isVoicePlaying}
               isSupported={speech.isSupported}
               isWorking={speech.state === 'connecting' || speech.state === 'stopping'}
               onMicClick={handleMicClick}
@@ -307,19 +360,26 @@ export default function LocationExperience({ location }: { location: LocationRec
                 speech.error
                   ? speech.error
                   : speech.state === 'connecting'
-                    ? 'Connecting to AssemblyAI…'
+                    ? 'Connecting…'
                     : speech.state === 'stopping'
-                      ? 'Finalizing AssemblyAI transcript…'
+                      ? 'Finalizing transcript…'
                       : speech.state === 'recording'
-                        ? 'Listening via AssemblyAI…'
+                        ? 'Listening…'
                         : speech.isSupported
-                          ? 'Tap the mic to start or stop recording'
-                          : 'Mic recording is not supported in this browser'
+                          ? 'Tap the mic to speak'
+                          : 'Mic not supported in this browser'
               }
               transcript={speech.transcript}
             />
           ) : (
-            <button type="button" className="panel-tab" onClick={() => setVoiceVisible(true)}>Voice ▼</button>
+            <button
+              type="button"
+              className="voice-mic-tab"
+              onClick={() => setVoiceVisible(true)}
+              aria-label="Open voice assistant"
+            >
+              <MicIcon className="voice-mic-tab-icon" aria-hidden />
+            </button>
           )}
         </div>
 

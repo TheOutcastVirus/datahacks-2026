@@ -12,7 +12,13 @@ import type { Camera, Vector3 } from 'three';
 import type { OrbitControls as OrbitControlsType } from 'three/examples/jsm/controls/OrbitControls.js';
 
 import type { SceneHotspot } from '@/lib/locations';
-import type { CameraPose, ViewerCommandApi, ViewerState } from '@/lib/viewer-types';
+import type {
+  CameraPose,
+  HazardMarker,
+  HazardReport,
+  ViewerCommandApi,
+  ViewerState,
+} from '@/lib/viewer-types';
 type SplatGestureMessage =
   | { type: 'splat-hand-control'; action: 'orbit'; dx: number; dy: number }
   | { type: 'splat-hand-control'; action: 'zoom'; delta: number }
@@ -30,16 +36,12 @@ type HandStatus =
 
 type Point2 = { x: number; y: number };
 type DetectedHand = 'left' | 'right' | 'unknown';
-type GestureMode = 'orbit' | 'zoom' | 'pan' | 'roll';
+type GestureMode = 'pan' | 'zoom';
 type GestureState = {
   smoothedCenter: Point2 | null;
-  smoothedPinch: number | null;
   smoothedHandScale: number | null;
-  smoothedRollAngle: number | null;
-  pinchZoomActive: boolean;
+  peaceZoomActive: boolean;
   activeGesture: GestureMode | null;
-  steadyOpenPalmStartMs: number | null;
-  resetLatched: boolean;
 };
 type CameraSnapshot = {
   position: [number, number, number];
@@ -78,14 +80,10 @@ const HAND_LANDMARKER_WASM_URL =
   'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.34/wasm';
 const PALM_INDICES = [0, 5, 9, 13, 17] as const;
 const GESTURE_SMOOTHING = 0.35;
-const ORBIT_DEADZONE = 0.003;
-const PAN_DEADZONE = 0.0024;
+const PAN_DEADZONE = 0.16;
+const PAN_NORMALIZATION_FLOOR = 0.085;
+const PAN_GAIN = 0.018;
 const SCALE_ZOOM_DEADZONE = 0.0025;
-const ROLL_DEADZONE = 0.025;
-const PINCH_ENTER_THRESHOLD = 0.11;
-const PINCH_EXIT_THRESHOLD = 0.18;
-const OPEN_PALM_RESET_HOLD_MS = 1200;
-const OPEN_PALM_RESET_DEADZONE = 0.0014;
 const FLOOD_CALIBRATION_BY_URL: Record<string, FloodCalibration> = {
   '/Cabbage-mvs_1012_04.ply': {
     startY: 0.1356126070022583,
@@ -270,14 +268,59 @@ const noopViewerApi: ViewerCommandApi = {
   resetCamera() {},
   setScenario() {},
   compareScenario() {},
+  setHazardsVisible() {},
+  getHazards: () => [],
 };
+
+const HAZARD_LABEL_COLOR: Record<string, string> = {
+  tall_structure: '#38bdf8',
+  flood_exposed: '#f97316',
+  erosion_proxy: '#f59e0b',
+};
+
+function hazardLetterTexture(
+  THREE: typeof import('three'),
+  letter: string,
+  color: string,
+) {
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.clearRect(0, 0, size, size);
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size / 2 - 10, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(3, 12, 22, 0.92)';
+    ctx.fill();
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = color;
+    ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.font = 'bold 140px system-ui, -apple-system, Segoe UI, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(letter, size / 2, size / 2 + 8);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.anisotropy = 4;
+  return texture;
+}
 
 type SplatViewerProps = {
   splatUrl: string;
   renderer?: 'auto' | 'ply' | 'splat';
   floodProgress?: number;
   hotspots?: SceneHotspot[];
+  hazardsUrl?: string;
   onViewerStateChange?: (state: ViewerState) => void;
+};
+
+type HazardTooltipState = {
+  hazard: HazardMarker;
+  x: number;
+  y: number;
 };
 
 const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function SplatViewer(
@@ -286,6 +329,7 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
     renderer = 'auto',
     floodProgress = 0,
     hotspots = [],
+    hazardsUrl,
     onViewerStateChange,
   },
   ref,
@@ -314,14 +358,11 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
   const camDistRef = useRef(0.359);
   const gestureStateRef = useRef<GestureState>({
     smoothedCenter: null,
-    smoothedPinch: null,
     smoothedHandScale: null,
-    smoothedRollAngle: null,
-    pinchZoomActive: false,
+    peaceZoomActive: false,
     activeGesture: null,
-    steadyOpenPalmStartMs: null,
-    resetLatched: false,
   });
+  const thumbKeyRef = useRef<string | null>(null);
   const handStatusRef = useRef<HandStatus>('inactive');
   const handStatusDetailRef = useRef<string>('Hand control off');
   const actionApiRef = useRef<ViewerCommandApi>(noopViewerApi);
@@ -338,6 +379,57 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [handControlEnabled, setHandControlEnabled] = useState(false);
   const [handStatus, setHandStatus] = useState<HandStatus>('inactive');
+  const [hazards, setHazards] = useState<HazardMarker[]>([]);
+  const [hazardTooltip, setHazardTooltip] = useState<HazardTooltipState | null>(null);
+  const hazardsRef = useRef<HazardMarker[]>([]);
+  const hazardGroupRef = useRef<import('three').Group | null>(null);
+  const hazardsVisibleRef = useRef<boolean>(false);
+  const hazardRebuildRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    hazardsRef.current = hazards;
+    hazardRebuildRef.current?.();
+  }, [hazards]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!hazardsUrl) {
+      setHazards([]);
+      return;
+    }
+    (async () => {
+      try {
+        const response = await fetch(hazardsUrl);
+        if (!response.ok) return;
+        const payload = (await response.json()) as HazardReport;
+        if (!cancelled && Array.isArray(payload.hazards)) {
+          setHazards(payload.hazards);
+        }
+      } catch {
+        // ignore — hazards are optional
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [hazardsUrl]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (
+        e.code === 'KeyH' &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !(e.target instanceof HTMLInputElement) &&
+        !(e.target instanceof HTMLTextAreaElement)
+      ) {
+        setHandControlEnabled((v) => !v);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const [handStatusDetail, setHandStatusDetail] = useState('Hand control off');
 
   const splatIframeSrc = useMemo(
@@ -355,6 +447,8 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
       setScenario: (scenarioId) => actionApiRef.current.setScenario(scenarioId),
       compareScenario: (leftId, rightId) =>
         actionApiRef.current.compareScenario(leftId, rightId),
+      setHazardsVisible: (visible) => actionApiRef.current.setHazardsVisible(visible),
+      getHazards: () => actionApiRef.current.getHazards(),
     }),
     [],
   );
@@ -421,6 +515,8 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
       resetCamera() {},
       setScenario() {},
       compareScenario() {},
+      setHazardsVisible() {},
+      getHazards: () => hazardsRef.current,
     };
 
     const moveKeys = new Set([
@@ -480,6 +576,8 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
     let materialToDispose: import('three').Material | null = null;
     let onKeyDown: ((event: KeyboardEvent) => void) | null = null;
     let onKeyUp: ((event: KeyboardEvent) => void) | null = null;
+    let onPointerMove: ((event: PointerEvent) => void) | null = null;
+    let onPointerLeave: ((event: PointerEvent) => void) | null = null;
     let transition:
       | {
           start: number;
@@ -631,6 +729,71 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
         pointsRef.current = points;
         scene.add(points);
 
+        const hazardGroup = new THREE.Group();
+        hazardGroup.visible = hazardsVisibleRef.current;
+        scene.add(hazardGroup);
+        hazardGroupRef.current = hazardGroup;
+        const hazardSpriteTextures: import('three').Texture[] = [];
+
+        const rebuildHazardSprites = () => {
+          while (hazardGroup.children.length > 0) {
+            const child = hazardGroup.children.pop();
+            if (child && (child as import('three').Sprite).material) {
+              ((child as import('three').Sprite).material as import('three').SpriteMaterial).dispose();
+            }
+          }
+          for (const texture of hazardSpriteTextures.splice(0)) texture.dispose();
+          const scale = Math.max(radius * 0.08, 0.08);
+          for (const hazard of hazardsRef.current) {
+            const color = HAZARD_LABEL_COLOR[hazard.label] ?? '#00d4b4';
+            const texture = hazardLetterTexture(THREE, hazard.id, color);
+            hazardSpriteTextures.push(texture);
+            const material = new THREE.SpriteMaterial({
+              map: texture,
+              transparent: true,
+              depthTest: false,
+              depthWrite: false,
+            });
+            const sprite = new THREE.Sprite(material);
+            sprite.position.set(hazard.position[0], hazard.position[1], hazard.position[2]);
+            sprite.scale.set(scale, scale, scale);
+            sprite.renderOrder = 999;
+            sprite.userData.hazardId = hazard.id;
+            hazardGroup.add(sprite);
+          }
+        };
+        rebuildHazardSprites();
+        hazardRebuildRef.current = rebuildHazardSprites;
+
+        const raycaster = new THREE.Raycaster();
+        raycaster.params.Sprite = { threshold: 0.1 } as unknown as never;
+        const pointerVec = new THREE.Vector2();
+        onPointerMove = (event: PointerEvent) => {
+          if (!hazardGroup.visible || hazardGroup.children.length === 0) {
+            setHazardTooltip((current) => (current ? null : current));
+            return;
+          }
+          const rect = rendererInstance!.domElement.getBoundingClientRect();
+          const x = event.clientX - rect.left;
+          const y = event.clientY - rect.top;
+          pointerVec.x = (x / rect.width) * 2 - 1;
+          pointerVec.y = -(y / rect.height) * 2 + 1;
+          raycaster.setFromCamera(pointerVec, camera);
+          const hits = raycaster.intersectObjects(hazardGroup.children, false);
+          if (hits.length > 0) {
+            const hazardId = hits[0].object.userData.hazardId as string | undefined;
+            const hazard = hazardsRef.current.find((h) => h.id === hazardId);
+            if (hazard) {
+              setHazardTooltip({ hazard, x, y });
+              return;
+            }
+          }
+          setHazardTooltip((current) => (current ? null : current));
+        };
+        onPointerLeave = () => setHazardTooltip((current) => (current ? null : current));
+        rendererInstance.domElement.addEventListener('pointermove', onPointerMove);
+        rendererInstance.domElement.addEventListener('pointerleave', onPointerLeave);
+
         const readPose = (): CameraPose => ({
           position: [camera.position.x, camera.position.y, camera.position.z],
           target: [controls!.target.x, controls!.target.y, controls!.target.z],
@@ -735,6 +898,16 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
           },
           setScenario() {},
           compareScenario() {},
+          setHazardsVisible(visible) {
+            hazardsVisibleRef.current = visible;
+            if (hazardGroupRef.current) {
+              hazardGroupRef.current.visible = visible;
+            }
+            if (!visible) {
+              setHazardTooltip(null);
+            }
+          },
+          getHazards: () => hazardsRef.current,
         };
 
         const moveKeys = new Set([
@@ -843,6 +1016,14 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
       resizeObserver?.disconnect();
       if (onKeyDown) window.removeEventListener('keydown', onKeyDown);
       if (onKeyUp) window.removeEventListener('keyup', onKeyUp);
+      if (rendererInstance && onPointerMove) {
+        rendererInstance.domElement.removeEventListener('pointermove', onPointerMove);
+      }
+      if (rendererInstance && onPointerLeave) {
+        rendererInstance.domElement.removeEventListener('pointerleave', onPointerLeave);
+      }
+      hazardGroupRef.current = null;
+      hazardRebuildRef.current = null;
       controls?.dispose();
       controlsRef.current = null;
       resetCameraRef.current = null;
@@ -869,13 +1050,9 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
     const resetGestureState = () => {
       gestureStateRef.current = {
         smoothedCenter: null,
-        smoothedPinch: null,
         smoothedHandScale: null,
-        smoothedRollAngle: null,
-        pinchZoomActive: false,
+        peaceZoomActive: false,
         activeGesture: null,
-        steadyOpenPalmStartMs: null,
-        resetLatched: false,
       };
     };
 
@@ -933,6 +1110,18 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
           lineWidth: 1,
           radius: 3,
         });
+        // Highlight thumb tip (4) and index tip (8) as large green dots
+        for (const idx of [4, 8] as const) {
+          const lm = landmarks[idx];
+          if (!lm) continue;
+          context.beginPath();
+          context.arc(lm.x * width, lm.y * height, 10, 0, Math.PI * 2);
+          context.fillStyle = '#22c55e';
+          context.fill();
+          context.strokeStyle = '#ffffff';
+          context.lineWidth = 2;
+          context.stroke();
+        }
       }
     };
 
@@ -989,7 +1178,7 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
 
         updateHandStatus(
           'no-hand',
-          'Show your right hand. Open hand orbits, pinch zooms, fist pans, V-sign rolls.',
+          'Show your hand. Move it left/right to pan.',
         );
 
         const step = () => {
@@ -1024,7 +1213,7 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
             resetGestureState();
             updateHandStatus(
               'no-hand',
-              'Show your right hand. Open hand orbits, pinch zooms, fist pans, V-sign rolls.',
+              'Show your hand. Move it left/right to pan.',
             );
             animationFrameId = window.requestAnimationFrame(step);
             return;
@@ -1044,7 +1233,7 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
             resetGestureState();
             updateHandStatus(
               'no-hand',
-              'Show your right hand. Open hand orbits, pinch zooms, fist pans, V-sign rolls.',
+              'Show your hand. Point thumb left/right to move.',
             );
             animationFrameId = window.requestAnimationFrame(step);
             return;
@@ -1057,237 +1246,61 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
             }),
             { x: 0, y: 0 },
           );
-          const pinchDistance = Math.hypot(
-            landmarks[4].x - landmarks[8].x,
-            landmarks[4].y - landmarks[8].y,
-          );
           const handScale =
             (
-              Math.hypot(
-                landmarks[0].x - landmarks[5].x,
-                landmarks[0].y - landmarks[5].y,
-              ) +
-              Math.hypot(
-                landmarks[0].x - landmarks[9].x,
-                landmarks[0].y - landmarks[9].y,
-              ) +
-              Math.hypot(
-                landmarks[0].x - landmarks[17].x,
-                landmarks[0].y - landmarks[17].y,
-              )
+              Math.hypot(landmarks[0].x - landmarks[5].x, landmarks[0].y - landmarks[5].y) +
+              Math.hypot(landmarks[0].x - landmarks[9].x, landmarks[0].y - landmarks[9].y) +
+              Math.hypot(landmarks[0].x - landmarks[17].x, landmarks[0].y - landmarks[17].y)
             ) / 3;
-          const fingerState = getExtendedFingers(landmarks);
-          const extendedFingerCount = Object.values(fingerState).filter(Boolean).length;
-          const peaceSignActive =
-            fingerState.index &&
-            fingerState.middle &&
-            !fingerState.ring &&
-            !fingerState.pinky;
-          const fistActive = extendedFingerCount <= 1;
-          const rollAngle = Math.atan2(
-            landmarks[12].y - landmarks[8].y,
-            landmarks[12].x - landmarks[8].x,
-          );
-
           const smoothedCenter = gestureStateRef.current.smoothedCenter
             ? {
-                x:
-                  gestureStateRef.current.smoothedCenter.x +
-                  (palmCenter.x - gestureStateRef.current.smoothedCenter.x) *
-                    GESTURE_SMOOTHING,
-                y:
-                  gestureStateRef.current.smoothedCenter.y +
-                  (palmCenter.y - gestureStateRef.current.smoothedCenter.y) *
-                    GESTURE_SMOOTHING,
+                x: gestureStateRef.current.smoothedCenter.x + (palmCenter.x - gestureStateRef.current.smoothedCenter.x) * GESTURE_SMOOTHING,
+                y: gestureStateRef.current.smoothedCenter.y + (palmCenter.y - gestureStateRef.current.smoothedCenter.y) * GESTURE_SMOOTHING,
               }
             : palmCenter;
-          const smoothedPinch =
-            gestureStateRef.current.smoothedPinch === null
-              ? pinchDistance
-              : gestureStateRef.current.smoothedPinch +
-                (pinchDistance - gestureStateRef.current.smoothedPinch) *
-                  GESTURE_SMOOTHING;
           const smoothedHandScale =
             gestureStateRef.current.smoothedHandScale === null
               ? handScale
-              : gestureStateRef.current.smoothedHandScale +
-                (handScale - gestureStateRef.current.smoothedHandScale) *
-                  GESTURE_SMOOTHING;
-          const smoothedRollAngle =
-            gestureStateRef.current.smoothedRollAngle === null
-              ? rollAngle
-              : gestureStateRef.current.smoothedRollAngle +
-                normalizeAngleDelta(rollAngle - gestureStateRef.current.smoothedRollAngle) *
-                  GESTURE_SMOOTHING;
+              : gestureStateRef.current.smoothedHandScale + (handScale - gestureStateRef.current.smoothedHandScale) * GESTURE_SMOOTHING;
 
-          const prevCenter = gestureStateRef.current.smoothedCenter;
-          const prevHandScale = gestureStateRef.current.smoothedHandScale;
-          const prevRollAngle = gestureStateRef.current.smoothedRollAngle;
-          const wasPinchZoomActive = gestureStateRef.current.pinchZoomActive;
-          const pinchZoomActive = wasPinchZoomActive
-            ? smoothedPinch < PINCH_EXIT_THRESHOLD
-            : smoothedPinch < PINCH_ENTER_THRESHOLD;
-          const nextGesture: GestureMode = pinchZoomActive
-            ? 'zoom'
-            : peaceSignActive
-              ? 'roll'
-              : fistActive
-                ? 'pan'
-                : 'orbit';
-          const previousGesture = gestureStateRef.current.activeGesture;
-          const gestureChanged = previousGesture !== nextGesture;
-          const centerDelta = prevCenter ? distance2D(smoothedCenter, prevCenter) : 0;
-          let steadyOpenPalmStartMs = gestureStateRef.current.steadyOpenPalmStartMs;
-          let resetLatched = gestureStateRef.current.resetLatched;
-
-          if (nextGesture !== 'orbit' || centerDelta > OPEN_PALM_RESET_DEADZONE) {
-            steadyOpenPalmStartMs = null;
-            resetLatched = false;
-          } else if (steadyOpenPalmStartMs === null || gestureChanged) {
-            steadyOpenPalmStartMs = performance.now();
-          }
+          // Thumb direction: angle from wrist (0) to thumb tip (4)
+          // Video is mirrored on display, so raw-right = screen-left and vice versa
+          const thumbAngle = Math.atan2(
+            landmarks[4].y - landmarks[0].y,
+            landmarks[4].x - landmarks[0].x,
+          );
+          const thumbCos = Math.cos(thumbAngle);
+          // thumbCos > 0.5 = thumb pointing raw-right = screen-left → ArrowLeft
+          // thumbCos < -0.5 = thumb pointing raw-left = screen-right → ArrowRight
+          const wantedKey = thumbCos > 0.5 ? 'ArrowLeft' : thumbCos < -0.5 ? 'ArrowRight' : null;
 
           gestureStateRef.current = {
             smoothedCenter,
-            smoothedPinch,
             smoothedHandScale,
-            smoothedRollAngle,
-            pinchZoomActive,
-            activeGesture: nextGesture,
-            steadyOpenPalmStartMs,
-            resetLatched,
+            peaceZoomActive: false,
+            activeGesture: 'pan',
           };
 
           const trackedHandLabel = describeTrackedHand(trackedHand);
 
-          if (
-            nextGesture === 'orbit' &&
-            steadyOpenPalmStartMs !== null &&
-            !resetLatched &&
-            performance.now() - steadyOpenPalmStartMs >= OPEN_PALM_RESET_HOLD_MS
-          ) {
-            if (usePlyRenderer && controls) {
-              resetOrbitCamera(controls, resetCameraRef.current);
-            } else {
-              sendSplatGesture(splatWindow, {
-                type: 'splat-hand-control',
-                action: 'reset',
-              });
-            }
-            gestureStateRef.current.resetLatched = true;
-            updateHandStatus(
-              'tracking',
-              `Tracking ${trackedHandLabel}. Open palm hold reset the view.`,
-            );
-          } else if (nextGesture === 'zoom' && !gestureChanged && prevHandScale !== null) {
-            const scaleDelta = smoothedHandScale - prevHandScale;
-            if (Math.abs(scaleDelta) > SCALE_ZOOM_DEADZONE) {
-              if (usePlyRenderer && controls) {
-                const zoomScale = 1 + clamp(Math.abs(scaleDelta) * 18, 0.04, 0.28);
-                if (scaleDelta > 0) {
-                  controls.dollyIn(zoomScale);
-                } else {
-                  controls.dollyOut(zoomScale);
-                }
-                controls.update();
-              } else {
-                const zoomDelta = clamp(scaleDelta * 12, -0.48, 0.48);
-                sendSplatGesture(splatWindow, {
-                  type: 'splat-hand-control',
-                  action: 'zoom',
-                  delta: zoomDelta,
-                });
+          {
+            const heldKey = thumbKeyRef.current;
+            if (heldKey !== wantedKey) {
+              if (heldKey) {
+                window.dispatchEvent(new KeyboardEvent('keyup', { code: heldKey, bubbles: true }));
+                iframeRef.current?.contentWindow?.postMessage({ type: 'splat-keyup', code: heldKey }, '*');
               }
-            }
-            updateHandStatus(
-              'tracking',
-              `Tracking ${trackedHandLabel}. Pinch and move closer to zoom in, farther to zoom out.`,
-            );
-          } else if (nextGesture === 'roll' && !gestureChanged && prevRollAngle !== null) {
-            const rollDelta = normalizeAngleDelta(smoothedRollAngle - prevRollAngle);
-            if (Math.abs(rollDelta) > ROLL_DEADZONE) {
-              if (usePlyRenderer && controls) {
-                rollOrbitCamera(controls, clamp(rollDelta * 0.9, -0.14, 0.14));
-              } else {
-                sendSplatGesture(splatWindow, {
-                  type: 'splat-hand-control',
-                  action: 'roll',
-                  delta: clamp(rollDelta * 1.3, -0.18, 0.18),
-                });
+              if (wantedKey) {
+                window.dispatchEvent(new KeyboardEvent('keydown', { code: wantedKey, bubbles: true }));
+                iframeRef.current?.contentWindow?.postMessage({ type: 'splat-keydown', code: wantedKey }, '*');
               }
+              thumbKeyRef.current = wantedKey;
             }
             updateHandStatus(
               'tracking',
-              `Tracking ${trackedHandLabel}. V-sign twist rolls the camera.`,
-            );
-          } else if (nextGesture === 'pan' && !gestureChanged && prevCenter) {
-            const deltaX = smoothedCenter.x - prevCenter.x;
-            const deltaY = smoothedCenter.y - prevCenter.y;
-
-            if (
-              Math.abs(deltaX) > PAN_DEADZONE ||
-              Math.abs(deltaY) > PAN_DEADZONE
-            ) {
-              if (usePlyRenderer && controls) {
-                panOrbitCamera(
-                  controls,
-                  clamp(deltaX * 2.3, -0.18, 0.18),
-                  clamp(deltaY * 2.3, -0.18, 0.18),
-                );
-              } else {
-                sendSplatGesture(splatWindow, {
-                  type: 'splat-hand-control',
-                  action: 'pan',
-                  dx: clamp(deltaX * 0.92, -0.12, 0.12),
-                  dy: clamp(deltaY * 0.92, -0.12, 0.12),
-                });
-              }
-            }
-            updateHandStatus(
-              'tracking',
-              `Tracking ${trackedHandLabel}. Close your hand into a fist and drag to pan.`,
-            );
-          } else if (prevCenter && nextGesture === 'orbit') {
-            const deltaX = smoothedCenter.x - prevCenter.x;
-            const deltaY = smoothedCenter.y - prevCenter.y;
-
-            if (
-              Math.abs(deltaX) > ORBIT_DEADZONE ||
-              Math.abs(deltaY) > ORBIT_DEADZONE
-            ) {
-              const orbitX = clamp(deltaX * Math.PI * 2.4, -0.18, 0.18);
-              const orbitY = clamp(deltaY * Math.PI * 2.1, -0.16, 0.16);
-              if (usePlyRenderer && controls) {
-                controls.rotateLeft(orbitX);
-                controls.rotateUp(orbitY);
-                controls.update();
-              } else {
-                sendSplatGesture(splatWindow, {
-                  type: 'splat-hand-control',
-                  action: 'orbit',
-                  dx: orbitX * 1.8,
-                  dy: orbitY * 1.8,
-                });
-              }
-            }
-            const resetCountdownSeconds =
-              steadyOpenPalmStartMs === null
-                ? null
-                : Math.max(
-                    0,
-                    (OPEN_PALM_RESET_HOLD_MS - (performance.now() - steadyOpenPalmStartMs)) /
-                      1000,
-                  );
-            updateHandStatus(
-              'tracking',
-              resetCountdownSeconds !== null && centerDelta <= OPEN_PALM_RESET_DEADZONE
-                ? `Tracking ${trackedHandLabel}. Open hand orbits. Hold steady ${resetCountdownSeconds.toFixed(1)}s to reset.`
-                : `Tracking ${trackedHandLabel}. Open hand orbits, pinch zooms, fist pans, V-sign rolls.`,
-            );
-          } else {
-            updateHandStatus(
-              'tracking',
-              `Tracking ${trackedHandLabel}. Open hand orbits, pinch zooms, fist pans, V-sign rolls.`,
+              wantedKey
+                ? `Tracking ${trackedHandLabel}. Thumb ${wantedKey === 'ArrowLeft' ? '←' : '→'}: moving.`
+                : `Tracking ${trackedHandLabel}. Point thumb left or right to move.`,
             );
           }
 
@@ -1321,6 +1334,11 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
       isDisposed = true;
       window.cancelAnimationFrame(animationFrameId);
       resetGestureState();
+      if (thumbKeyRef.current) {
+        window.dispatchEvent(new KeyboardEvent('keyup', { code: thumbKeyRef.current, bubbles: true }));
+        iframeRef.current?.contentWindow?.postMessage({ type: 'splat-keyup', code: thumbKeyRef.current }, '*');
+        thumbKeyRef.current = null;
+      }
       drawingUtils?.close();
       handLandmarker?.close();
       if (stream) {
@@ -1422,13 +1440,53 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
       style={{ background: '#020a12' }}
     >
       {usePlyRenderer ? (
-        <div
-          ref={canvasHostRef}
-          style={{
-            position: 'absolute',
-            inset: 0,
-          }}
-        />
+        <>
+          <div
+            ref={canvasHostRef}
+            style={{
+              position: 'absolute',
+              inset: 0,
+            }}
+          />
+          {hazardTooltip ? (
+            <div
+              role="tooltip"
+              style={{
+                position: 'absolute',
+                left: Math.min(hazardTooltip.x + 14, (canvasHostRef.current?.clientWidth ?? 0) - 280),
+                top: Math.max(hazardTooltip.y - 12, 8),
+                zIndex: 25,
+                maxWidth: 280,
+                padding: '10px 12px',
+                background: 'rgba(3, 12, 22, 0.92)',
+                border: `1px solid ${HAZARD_LABEL_COLOR[hazardTooltip.hazard.label] ?? 'rgba(0, 212, 180, 0.35)'}`,
+                color: '#e2f1ff',
+                fontFamily: 'var(--font-body)',
+                fontSize: 12,
+                lineHeight: 1.4,
+                pointerEvents: 'none',
+                backdropFilter: 'blur(12px)',
+              }}
+            >
+              <div
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 10,
+                  letterSpacing: '0.18em',
+                  textTransform: 'uppercase',
+                  color: HAZARD_LABEL_COLOR[hazardTooltip.hazard.label] ?? 'var(--accent)',
+                  marginBottom: 4,
+                }}
+              >
+                {hazardTooltip.hazard.id} · {hazardTooltip.hazard.label.replace(/_/g, ' ')}
+              </div>
+              <div style={{ marginBottom: 6 }}>{hazardTooltip.hazard.summary}</div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-mid)' }}>
+                severity {(hazardTooltip.hazard.severity * 100).toFixed(0)}% · confidence: geometric proxy
+              </div>
+            </div>
+          ) : null}
+        </>
       ) : (
         <iframe
           ref={iframeRef}
@@ -1449,40 +1507,23 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
           alignItems: 'flex-start',
         }}
       >
-        <button
-          type="button"
-          onClick={() => setHandControlEnabled((current) => !current)}
-          disabled={viewerState !== 'ready'}
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: '11px',
-            letterSpacing: '0.16em',
-            textTransform: 'uppercase',
-            color: handControlEnabled ? '#031018' : 'var(--text-hi)',
-            background: handControlEnabled ? 'var(--accent)' : 'rgba(3, 12, 22, 0.82)',
-            border: `1px solid ${
-              handControlEnabled ? 'rgba(0, 212, 180, 0.95)' : 'rgba(0, 212, 180, 0.28)'
-            }`,
-            padding: '10px 14px',
-            cursor: viewerState === 'ready' ? 'pointer' : 'default',
-            opacity: viewerState === 'ready' ? 1 : 0.55,
-            boxShadow: handControlEnabled
-              ? '0 12px 24px rgba(0, 212, 180, 0.18)'
-              : 'none',
-          }}
-        >
-          {handControlEnabled ? 'Disable Hand Control' : 'Enable Hand Control'}
-        </button>
-
         <div
+          role="button"
+          tabIndex={0}
+          onClick={() => viewerState === 'ready' && setHandControlEnabled((v) => !v)}
+          onKeyDown={(e) => e.key === 'Enter' && viewerState === 'ready' && setHandControlEnabled((v) => !v)}
           style={{
             display: 'grid',
             gap: 8,
             minWidth: 220,
             padding: '10px 12px',
             background: 'rgba(3, 12, 22, 0.82)',
-            border: '1px solid rgba(0, 212, 180, 0.16)',
+            border: `1px solid ${
+              handControlEnabled ? 'rgba(0, 212, 180, 0.4)' : 'rgba(0, 212, 180, 0.16)'
+            }`,
             backdropFilter: 'blur(12px)',
+            cursor: viewerState === 'ready' ? 'pointer' : 'default',
+            opacity: viewerState === 'ready' ? 1 : 0.55,
           }}
         >
           <div
@@ -1520,16 +1561,6 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
               }}
             />
             {handStatus === 'inactive' ? 'Hand Control Off' : handStatus.replace('-', ' ')}
-          </div>
-          <div
-            style={{
-              fontFamily: 'var(--font-body)',
-              fontSize: '12px',
-              lineHeight: 1.45,
-              color: 'var(--text-mid)',
-            }}
-          >
-            {handStatusDetail}
           </div>
           {handControlEnabled ? (
             <div
@@ -1600,67 +1631,64 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
                 color: 'rgba(173, 224, 235, 0.74)',
               }}
             >
-              <div>Open hand: Orbit</div>
-              <div>Pinch: Zoom</div>
-              <div>Fist drag: Pan</div>
-              <div>V-sign twist: Roll</div>
-              <div>Open palm hold: Reset</div>
+              <div>Move hand left/right: Pan</div>
+              <div>Works with either hand</div>
             </div>
           ) : null}
         </div>
       </div>
-      {camPos && !usePlyRenderer && (
-        <div
-          style={{
-            position: 'absolute',
-            bottom: 18,
-            left: 18,
-            zIndex: 20,
-            fontFamily: 'var(--font-mono)',
-            fontSize: '11px',
-            letterSpacing: '0.12em',
-            background: 'rgba(3,12,22,0.75)',
-            border: '1px solid rgba(0,212,180,0.18)',
-            padding: '8px 12px',
-            lineHeight: 1.8,
-            pointerEvents: 'none',
-          }}
-        >
-          <div style={{ color: 'rgba(94,142,173,0.7)', textTransform: 'uppercase', fontSize: '9px', marginBottom: 2 }}>Position</div>
-          <div><span style={{ color: 'var(--text-mid)' }}>X</span> <span style={{ color: 'var(--accent)' }}>{camPos.x.toFixed(3)}</span></div>
-          <div><span style={{ color: 'var(--text-mid)' }}>Y</span> <span style={{ color: 'var(--accent)' }}>{camPos.y.toFixed(3)}</span></div>
-          <div><span style={{ color: 'var(--text-mid)' }}>Z</span> <span style={{ color: 'var(--accent)' }}>{camPos.z.toFixed(3)}</span></div>
-        </div>
-      )}
       <div
         style={{
           position: 'absolute',
+          left: 18,
           bottom: 18,
-          right: 18,
-          zIndex: 20,
+          zIndex: 22,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 10,
+          alignItems: 'flex-start',
+          maxWidth: 'min(320px, calc(100vw - 36px))',
           fontFamily: 'var(--font-mono)',
           fontSize: '11px',
         }}
       >
-        <button
-          type="button"
-          onClick={() => setShowSetup(s => !s)}
-          style={{
-            letterSpacing: '0.16em',
-            textTransform: 'uppercase',
-            color: 'var(--text-hi)',
-            background: 'rgba(3,12,22,0.82)',
-            border: '1px solid rgba(0,212,180,0.28)',
-            padding: '8px 12px',
-            cursor: 'pointer',
-            marginBottom: showSetup ? 8 : 0,
-            display: 'block',
-            marginLeft: 'auto',
-          }}
-        >
-          {showSetup ? 'Hide Setup' : 'Camera Setup'}
-        </button>
-        {showSetup && (
+        {camPos && !usePlyRenderer ? (
+          <div
+            style={{
+              fontSize: '11px',
+              letterSpacing: '0.12em',
+              background: 'rgba(3,12,22,0.75)',
+              border: '1px solid rgba(0,212,180,0.18)',
+              padding: '8px 12px',
+              lineHeight: 1.8,
+              pointerEvents: 'none',
+            }}
+          >
+            <div style={{ color: 'rgba(94,142,173,0.7)', textTransform: 'uppercase', fontSize: '9px', marginBottom: 2 }}>Position</div>
+            <div><span style={{ color: 'var(--text-mid)' }}>X</span> <span style={{ color: 'var(--accent)' }}>{camPos.x.toFixed(3)}</span></div>
+            <div><span style={{ color: 'var(--text-mid)' }}>Y</span> <span style={{ color: 'var(--accent)' }}>{camPos.y.toFixed(3)}</span></div>
+            <div><span style={{ color: 'var(--text-mid)' }}>Z</span> <span style={{ color: 'var(--accent)' }}>{camPos.z.toFixed(3)}</span></div>
+          </div>
+        ) : null}
+        <div>
+          <button
+            type="button"
+            onClick={() => setShowSetup(s => !s)}
+            style={{
+              letterSpacing: '0.16em',
+              textTransform: 'uppercase',
+              color: 'var(--text-hi)',
+              background: 'rgba(3,12,22,0.82)',
+              border: '1px solid rgba(0,212,180,0.28)',
+              padding: '8px 12px',
+              cursor: 'pointer',
+              marginBottom: showSetup ? 8 : 0,
+              display: 'block',
+            }}
+          >
+            {showSetup ? 'Hide Setup' : 'Camera Setup'}
+          </button>
+          {showSetup ? (
           <div
             style={{
               background: 'rgba(3,12,22,0.90)',
@@ -1744,7 +1772,8 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
               elev={camElev.toFixed(3)} dist={camDist.toFixed(3)}
             </div>
           </div>
-        )}
+        ) : null}
+        </div>
       </div>
       {viewerState === 'loading' ? (
         <div
