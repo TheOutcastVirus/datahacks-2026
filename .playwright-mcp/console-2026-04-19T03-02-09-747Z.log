@@ -1,0 +1,34 @@
+[    2048ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:3000/_next/static/chunks/0ewp_next_dist_0io0u2g._.js:2431
+[    2976ms] [LOG] Response @ http://127.0.0.1:3000/splat/main.js:878
+[    3028ms] [LOG] 8808604.875 1 @ http://127.0.0.1:3000/splat/main.js:899
+[    4140ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:3000/_next/webpack-hmr?id=dvhVa5K1B78OZrBmDR5Kq' failed: Error during WebSocket handshake: net::ERR_INVALID_HTTP_RESPONSE @ http://127.0.0.1:3000/_next/static/chunks/0ewp_next_dist_client_0gq00va._.js:13299
+[    5621ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:3000/_next/webpack-hmr?id=dvhVa5K1B78OZrBmDR5Kq' failed: Error during WebSocket handshake: net::ERR_INVALID_HTTP_RESPONSE @ http://127.0.0.1:3000/_next/static/chunks/0ewp_next_dist_client_0gq00va._.js:13299
+[    6466ms] [LOG] Vertex Count 1136588 @ blob:http://127.0.0.1:3000/bded9bbf-0a74-4316-9624-d741bc2e029d:185
+[    6478ms] [LOG] Bytes per row 248 {x: getFloat32, y: getFloat32, z: getFloat32, nx: getFloat32, ny: getFloat32} {x: 0, y: 4, z: 8, nx: 12, ny: 16} @ blob:http://127.0.0.1:3000/bded9bbf-0a74-4316-9624-d741bc2e029d:208
+[    6631ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:3000/_next/webpack-hmr?id=dvhVa5K1B78OZrBmDR5Kq' failed: Error during WebSocket handshake: net::ERR_INVALID_HTTP_RESPONSE @ http://127.0.0.1:3000/_next/static/chunks/0ewp_next_dist_client_0gq00va._.js:13299
+[    7653ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:3000/_next/webpack-hmr?id=dvhVa5K1B78OZrBmDR5Kq' failed: Error during WebSocket handshake: net::ERR_INVALID_HTTP_RESPONSE @ http://127.0.0.1:3000/_next/static/chunks/0ewp_next_dist_client_0gq00va._.js:13299
+[    7710ms] [TIMEEND] calculate importance: 1216.83203125 ms @ blob:http://127.0.0.1:3000/bded9bbf-0a74-4316-9624-d741bc2e029d:241
+[    8584ms] [TIMEEND] sort: 871.826171875 ms @ blob:http://127.0.0.1:3000/bded9bbf-0a74-4316-9624-d741bc2e029d:245
+[    8656ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:3000/_next/webpack-hmr?id=dvhVa5K1B78OZrBmDR5Kq' failed: Error during WebSocket handshake: net::ERR_INVALID_HTTP_RESPONSE @ http://127.0.0.1:3000/_next/static/chunks/0ewp_next_dist_client_0gq00va._.js:13299
+[    9663ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:3000/_next/webpack-hmr?id=dvhVa5K1B78OZrBmDR5Kq' failed: Error during WebSocket handshake: net::ERR_INVALID_HTTP_RESPONSE @ http://127.0.0.1:3000/_next/static/chunks/0ewp_next_dist_client_0gq00va._.js:13299
+[   11089ms] [TIMEEND] build buffer: 2444.822998046875 ms @ blob:http://127.0.0.1:3000/bded9bbf-0a74-4316-9624-d741bc2e029d:334
+[   14370ms] [TIMEEND] sort: 411.373046875 ms @ blob:http://127.0.0.1:3000/bded9bbf-0a74-4316-9624-d741bc2e029d:168
+[   14669ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:3000/_next/webpack-hmr?id=dvhVa5K1B78OZrBmDR5Kq' failed: Error during WebSocket handshake: net::ERR_INVALID_HTTP_RESPONSE @ http://127.0.0.1:3000/_next/static/chunks/0ewp_next_dist_client_0gq00va._.js:13299
+[   19682ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:3000/_next/webpack-hmr?id=dvhVa5K1B78OZrBmDR5Kq' failed: Error during WebSocket handshake: net::ERR_INVALID_HTTP_RESPONSE @ http://127.0.0.1:3000/_next/static/chunks/0ewp_next_dist_client_0gq00va._.js:13299
+[   24724ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:3000/_next/webpack-hmr?id=dvhVa5K1B78OZrBmDR5Kq' failed: Error during WebSocket handshake: net::ERR_INVALID_HTTP_RESPONSE @ http://127.0.0.1:3000/_next/static/chunks/0ewp_next_dist_client_0gq00va._.js:13299
+[   28999ms] [TIMEEND] sort: 79.666015625 ms @ blob:http://127.0.0.1:3000/bded9bbf-0a74-4316-9624-d741bc2e029d:168
+[   29077ms] [TIMEEND] sort: 50.315185546875 ms @ blob:http://127.0.0.1:3000/bded9bbf-0a74-4316-9624-d741bc2e029d:168
+[   29809ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:3000/_next/webpack-hmr?id=dvhVa5K1B78OZrBmDR5Kq' failed: Error during WebSocket handshake: net::ERR_INVALID_HTTP_RESPONSE @ http://127.0.0.1:3000/_next/static/chunks/0ewp_next_dist_client_0gq00va._.js:13299
+[   30667ms] [TIMEEND] sort: 31.046875 ms @ blob:http://127.0.0.1:3000/bded9bbf-0a74-4316-9624-d741bc2e029d:168
+[   30844ms] [TIMEEND] sort: 25.18701171875 ms @ blob:http://127.0.0.1:3000/bded9bbf-0a74-4316-9624-d741bc2e029d:168
+[   31054ms] [TIMEEND] sort: 17.8359375 ms @ blob:http://127.0.0.1:3000/bded9bbf-0a74-4316-9624-d741bc2e029d:168
+[   31195ms] [TIMEEND] sort: 10.98779296875 ms @ blob:http://127.0.0.1:3000/bded9bbf-0a74-4316-9624-d741bc2e029d:168
+[   31235ms] [TIMEEND] sort: 10.9189453125 ms @ blob:http://127.0.0.1:3000/bded9bbf-0a74-4316-9624-d741bc2e029d:168
+[   31263ms] [TIMEEND] sort: 10.6630859375 ms @ blob:http://127.0.0.1:3000/bded9bbf-0a74-4316-9624-d741bc2e029d:168
+[   31311ms] [TIMEEND] sort: 10.546142578125 ms @ blob:http://127.0.0.1:3000/bded9bbf-0a74-4316-9624-d741bc2e029d:168
+[   31412ms] [TIMEEND] sort: 10.789794921875 ms @ blob:http://127.0.0.1:3000/bded9bbf-0a74-4316-9624-d741bc2e029d:168
+[   32562ms] [TIMEEND] sort: 10.751220703125 ms @ blob:http://127.0.0.1:3000/bded9bbf-0a74-4316-9624-d741bc2e029d:168
+[   32597ms] [TIMEEND] sort: 12.5849609375 ms @ blob:http://127.0.0.1:3000/bded9bbf-0a74-4316-9624-d741bc2e029d:168
+[   32677ms] [TIMEEND] sort: 18.55712890625 ms @ blob:http://127.0.0.1:3000/bded9bbf-0a74-4316-9624-d741bc2e029d:168
+[   34902ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:3000/_next/webpack-hmr?id=dvhVa5K1B78OZrBmDR5Kq' failed: Error during WebSocket handshake: net::ERR_INVALID_HTTP_RESPONSE @ http://127.0.0.1:3000/_next/static/chunks/0ewp_next_dist_client_0gq00va._.js:13299
+[   36398ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:3000/_next/static/chunks/0ewp_next_dist_0io0u2g._.js:2431

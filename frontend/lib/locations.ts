@@ -21,6 +21,10 @@ export type ScenarioRecord = {
 export type FloodCalibration = {
   startY: number;
   endY: number;
+  minX?: number;
+  maxX?: number;
+  minZ?: number;
+  maxZ?: number;
 };
 
 export type LocationRecord = {
@@ -151,10 +155,6 @@ export const LOCATIONS: LocationRecord[] = [
     description: '',
     splatUrl: '/output.ply',
     renderer: 'splat',
-    floodCalibration: {
-      startY: -1.5,
-      endY: 0.8,
-    },
     status: 'Render Ready',
     updatedAt: 'April 18, 2026',
     scene: {

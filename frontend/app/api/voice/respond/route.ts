@@ -1,45 +1,54 @@
+import axios from 'axios';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 const NVIDIA_NIM_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
-const MODEL = 'google/gemma-4-31b-it';
+const MODEL = 'moonshotai/kimi-k2.5';
 
-type NIMContentPart =
+type NIMDeltaPart =
   | string
   | {
       text?: string;
       type?: string;
     };
 
-type NIMResponseBody = {
+type NIMStreamChunk = {
   choices?: Array<{
+    delta?: {
+      content?: string | NIMDeltaPart[];
+      reasoning_content?: string | NIMDeltaPart[];
+    };
     message?: {
-      content?: string | NIMContentPart[];
-      reasoning_content?: string | NIMContentPart[];
+      content?: string | NIMDeltaPart[];
+      reasoning_content?: string | NIMDeltaPart[];
     };
   }>;
 };
 
-function extractTextParts(content: string | NIMContentPart[] | undefined) {
+function extractTextParts(content: string | NIMDeltaPart[] | undefined) {
   if (!content) {
     return '';
   }
 
   if (typeof content === 'string') {
-    return content.trim();
+    return content;
   }
 
   return content
-    .map((part) => {
-      if (typeof part === 'string') {
-        return part;
-      }
+    .map((part) => (typeof part === 'string' ? part : part.text ?? ''))
+    .join('');
+}
 
-      return part.text ?? '';
-    })
-    .join(' ')
-    .trim();
+function collectTextFromChunk(chunk: NIMStreamChunk) {
+  const choice = chunk.choices?.[0];
+  return (
+    extractTextParts(choice?.delta?.content) ||
+    extractTextParts(choice?.delta?.reasoning_content) ||
+    extractTextParts(choice?.message?.content) ||
+    extractTextParts(choice?.message?.reasoning_content)
+  );
 }
 
 export async function POST(request: Request) {
@@ -62,58 +71,96 @@ The user is viewing a real-time sea level rise simulation. Answer conversational
 Context about the current scene:
 ${context ?? 'No scene context provided.'}`;
 
-  let response: Response;
+  const payload = {
+    model: MODEL,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: transcript.trim() },
+    ],
+    max_tokens: 384,
+    temperature: 0.55,
+    top_p: 0.9,
+    stream: true,
+    chat_template_kwargs: { thinking: false },
+  };
 
   try {
-    response = await fetch(NVIDIA_NIM_URL, {
-      method: 'POST',
+    const response = await axios.post(NVIDIA_NIM_URL, payload, {
       headers: {
-        'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
+        Accept: 'text/event-stream',
+        'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: transcript.trim() },
-        ],
-        max_tokens: 300,
-        temperature: 1.0,
-        top_p: 0.95,
-        stream: false,
-      }),
-      signal: AbortSignal.timeout(15_000),
+      responseType: 'stream',
+      // Cap a single request — overall route is bounded by `maxDuration` above.
+      timeout: 55_000,
     });
+
+    let text = '';
+    let buffer = '';
+
+    for await (const chunk of response.data as AsyncIterable<Buffer | string>) {
+      buffer += chunk.toString();
+
+      const events = buffer.split('\n\n');
+      buffer = events.pop() ?? '';
+
+      for (const event of events) {
+        for (const line of event.split('\n')) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('data:')) continue;
+
+          const raw = trimmed.slice(5).trim();
+          if (!raw || raw === '[DONE]') continue;
+
+          try {
+            const parsed = JSON.parse(raw) as NIMStreamChunk;
+            text += collectTextFromChunk(parsed);
+          } catch (parseError) {
+            console.warn('Unable to parse NVIDIA NIM SSE chunk:', raw, parseError);
+          }
+        }
+      }
+    }
+
+    const finalText = text.trim();
+    if (!finalText) {
+      return NextResponse.json(
+        { error: 'AI response came back empty.' },
+        { status: 502 },
+      );
+    }
+
+    return NextResponse.json({ text: finalText });
   } catch (error) {
-    console.error('NVIDIA NIM fetch failed:', error);
+    console.error('NVIDIA NIM voice error:', error);
+
+    if (axios.isAxiosError(error)) {
+      if (error.code === 'ECONNABORTED') {
+        return NextResponse.json(
+          { error: 'NVIDIA NIM timed out before responding.' },
+          { status: 504 },
+        );
+      }
+
+      const status = error.response?.status;
+      const body = error.response?.data;
+      const detail =
+        typeof body === 'string'
+          ? body.slice(0, 500)
+          : body && typeof body === 'object' && 'error' in body
+            ? String((body as { error?: unknown }).error)
+            : error.message;
+
+      return NextResponse.json(
+        { error: detail || 'NVIDIA NIM request failed.' },
+        { status: status && status >= 400 && status < 600 ? status : 502 },
+      );
+    }
+
     const message =
-      error instanceof Error && /timeout/i.test(error.message)
-        ? 'NVIDIA NIM timed out before responding.'
-        : 'NVIDIA NIM request failed before a response was received.';
-    return NextResponse.json({ error: message }, { status: 504 });
+      error instanceof Error ? error.message : 'NVIDIA NIM request failed.';
+
+    return NextResponse.json({ error: message }, { status: 502 });
   }
-
-  if (!response.ok) {
-    const err = await response.text().catch(() => '');
-    console.error('NVIDIA NIM error:', err);
-    return NextResponse.json(
-      { error: err || 'AI response failed.' },
-      { status: 502 },
-    );
-  }
-
-  const body = (await response.json()) as NIMResponseBody;
-  const message = body.choices?.[0]?.message;
-  const text =
-    extractTextParts(message?.content) || extractTextParts(message?.reasoning_content);
-
-  if (!text) {
-    console.error('NVIDIA NIM returned an empty response body:', body);
-    return NextResponse.json(
-      { error: 'AI response came back empty.' },
-      { status: 502 },
-    );
-  }
-
-  return NextResponse.json({ text });
 }
