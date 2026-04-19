@@ -9,4 +9,5 @@ export type VoiceIntent =
   | { type: 'explain_flood_risk'; hotspotId?: string }
   | { type: 'explain_sources' }
   | { type: 'help' }
+  | { type: 'scan_hazards' }
   | { type: 'unknown'; transcript: string };

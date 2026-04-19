@@ -12,7 +12,13 @@ import type { Camera, Vector3 } from 'three';
 import type { OrbitControls as OrbitControlsType } from 'three/examples/jsm/controls/OrbitControls.js';
 
 import type { SceneHotspot } from '@/lib/locations';
-import type { CameraPose, ViewerCommandApi, ViewerState } from '@/lib/viewer-types';
+import type {
+  CameraPose,
+  HazardMarker,
+  HazardReport,
+  ViewerCommandApi,
+  ViewerState,
+} from '@/lib/viewer-types';
 type SplatGestureMessage =
   | { type: 'splat-hand-control'; action: 'orbit'; dx: number; dy: number }
   | { type: 'splat-hand-control'; action: 'zoom'; delta: number }
@@ -262,14 +268,59 @@ const noopViewerApi: ViewerCommandApi = {
   resetCamera() {},
   setScenario() {},
   compareScenario() {},
+  setHazardsVisible() {},
+  getHazards: () => [],
 };
+
+const HAZARD_LABEL_COLOR: Record<string, string> = {
+  tall_structure: '#38bdf8',
+  flood_exposed: '#f97316',
+  erosion_proxy: '#f59e0b',
+};
+
+function hazardLetterTexture(
+  THREE: typeof import('three'),
+  letter: string,
+  color: string,
+) {
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.clearRect(0, 0, size, size);
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size / 2 - 10, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(3, 12, 22, 0.92)';
+    ctx.fill();
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = color;
+    ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.font = 'bold 140px system-ui, -apple-system, Segoe UI, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(letter, size / 2, size / 2 + 8);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.anisotropy = 4;
+  return texture;
+}
 
 type SplatViewerProps = {
   splatUrl: string;
   renderer?: 'auto' | 'ply' | 'splat';
   floodProgress?: number;
   hotspots?: SceneHotspot[];
+  hazardsUrl?: string;
   onViewerStateChange?: (state: ViewerState) => void;
+};
+
+type HazardTooltipState = {
+  hazard: HazardMarker;
+  x: number;
+  y: number;
 };
 
 const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function SplatViewer(
@@ -278,6 +329,7 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
     renderer = 'auto',
     floodProgress = 0,
     hotspots = [],
+    hazardsUrl,
     onViewerStateChange,
   },
   ref,
@@ -327,6 +379,40 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [handControlEnabled, setHandControlEnabled] = useState(false);
   const [handStatus, setHandStatus] = useState<HandStatus>('inactive');
+  const [hazards, setHazards] = useState<HazardMarker[]>([]);
+  const [hazardTooltip, setHazardTooltip] = useState<HazardTooltipState | null>(null);
+  const hazardsRef = useRef<HazardMarker[]>([]);
+  const hazardGroupRef = useRef<import('three').Group | null>(null);
+  const hazardsVisibleRef = useRef<boolean>(false);
+  const hazardRebuildRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    hazardsRef.current = hazards;
+    hazardRebuildRef.current?.();
+  }, [hazards]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!hazardsUrl) {
+      setHazards([]);
+      return;
+    }
+    (async () => {
+      try {
+        const response = await fetch(hazardsUrl);
+        if (!response.ok) return;
+        const payload = (await response.json()) as HazardReport;
+        if (!cancelled && Array.isArray(payload.hazards)) {
+          setHazards(payload.hazards);
+        }
+      } catch {
+        // ignore — hazards are optional
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [hazardsUrl]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -361,6 +447,8 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
       setScenario: (scenarioId) => actionApiRef.current.setScenario(scenarioId),
       compareScenario: (leftId, rightId) =>
         actionApiRef.current.compareScenario(leftId, rightId),
+      setHazardsVisible: (visible) => actionApiRef.current.setHazardsVisible(visible),
+      getHazards: () => actionApiRef.current.getHazards(),
     }),
     [],
   );
@@ -427,6 +515,8 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
       resetCamera() {},
       setScenario() {},
       compareScenario() {},
+      setHazardsVisible() {},
+      getHazards: () => hazardsRef.current,
     };
 
     const moveKeys = new Set([
@@ -486,6 +576,8 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
     let materialToDispose: import('three').Material | null = null;
     let onKeyDown: ((event: KeyboardEvent) => void) | null = null;
     let onKeyUp: ((event: KeyboardEvent) => void) | null = null;
+    let onPointerMove: ((event: PointerEvent) => void) | null = null;
+    let onPointerLeave: ((event: PointerEvent) => void) | null = null;
     let transition:
       | {
           start: number;
@@ -637,6 +729,71 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
         pointsRef.current = points;
         scene.add(points);
 
+        const hazardGroup = new THREE.Group();
+        hazardGroup.visible = hazardsVisibleRef.current;
+        scene.add(hazardGroup);
+        hazardGroupRef.current = hazardGroup;
+        const hazardSpriteTextures: import('three').Texture[] = [];
+
+        const rebuildHazardSprites = () => {
+          while (hazardGroup.children.length > 0) {
+            const child = hazardGroup.children.pop();
+            if (child && (child as import('three').Sprite).material) {
+              ((child as import('three').Sprite).material as import('three').SpriteMaterial).dispose();
+            }
+          }
+          for (const texture of hazardSpriteTextures.splice(0)) texture.dispose();
+          const scale = Math.max(radius * 0.08, 0.08);
+          for (const hazard of hazardsRef.current) {
+            const color = HAZARD_LABEL_COLOR[hazard.label] ?? '#00d4b4';
+            const texture = hazardLetterTexture(THREE, hazard.id, color);
+            hazardSpriteTextures.push(texture);
+            const material = new THREE.SpriteMaterial({
+              map: texture,
+              transparent: true,
+              depthTest: false,
+              depthWrite: false,
+            });
+            const sprite = new THREE.Sprite(material);
+            sprite.position.set(hazard.position[0], hazard.position[1], hazard.position[2]);
+            sprite.scale.set(scale, scale, scale);
+            sprite.renderOrder = 999;
+            sprite.userData.hazardId = hazard.id;
+            hazardGroup.add(sprite);
+          }
+        };
+        rebuildHazardSprites();
+        hazardRebuildRef.current = rebuildHazardSprites;
+
+        const raycaster = new THREE.Raycaster();
+        raycaster.params.Sprite = { threshold: 0.1 } as unknown as never;
+        const pointerVec = new THREE.Vector2();
+        onPointerMove = (event: PointerEvent) => {
+          if (!hazardGroup.visible || hazardGroup.children.length === 0) {
+            setHazardTooltip((current) => (current ? null : current));
+            return;
+          }
+          const rect = rendererInstance!.domElement.getBoundingClientRect();
+          const x = event.clientX - rect.left;
+          const y = event.clientY - rect.top;
+          pointerVec.x = (x / rect.width) * 2 - 1;
+          pointerVec.y = -(y / rect.height) * 2 + 1;
+          raycaster.setFromCamera(pointerVec, camera);
+          const hits = raycaster.intersectObjects(hazardGroup.children, false);
+          if (hits.length > 0) {
+            const hazardId = hits[0].object.userData.hazardId as string | undefined;
+            const hazard = hazardsRef.current.find((h) => h.id === hazardId);
+            if (hazard) {
+              setHazardTooltip({ hazard, x, y });
+              return;
+            }
+          }
+          setHazardTooltip((current) => (current ? null : current));
+        };
+        onPointerLeave = () => setHazardTooltip((current) => (current ? null : current));
+        rendererInstance.domElement.addEventListener('pointermove', onPointerMove);
+        rendererInstance.domElement.addEventListener('pointerleave', onPointerLeave);
+
         const readPose = (): CameraPose => ({
           position: [camera.position.x, camera.position.y, camera.position.z],
           target: [controls!.target.x, controls!.target.y, controls!.target.z],
@@ -741,6 +898,16 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
           },
           setScenario() {},
           compareScenario() {},
+          setHazardsVisible(visible) {
+            hazardsVisibleRef.current = visible;
+            if (hazardGroupRef.current) {
+              hazardGroupRef.current.visible = visible;
+            }
+            if (!visible) {
+              setHazardTooltip(null);
+            }
+          },
+          getHazards: () => hazardsRef.current,
         };
 
         const moveKeys = new Set([
@@ -849,6 +1016,14 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
       resizeObserver?.disconnect();
       if (onKeyDown) window.removeEventListener('keydown', onKeyDown);
       if (onKeyUp) window.removeEventListener('keyup', onKeyUp);
+      if (rendererInstance && onPointerMove) {
+        rendererInstance.domElement.removeEventListener('pointermove', onPointerMove);
+      }
+      if (rendererInstance && onPointerLeave) {
+        rendererInstance.domElement.removeEventListener('pointerleave', onPointerLeave);
+      }
+      hazardGroupRef.current = null;
+      hazardRebuildRef.current = null;
       controls?.dispose();
       controlsRef.current = null;
       resetCameraRef.current = null;
@@ -1265,13 +1440,53 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
       style={{ background: '#020a12' }}
     >
       {usePlyRenderer ? (
-        <div
-          ref={canvasHostRef}
-          style={{
-            position: 'absolute',
-            inset: 0,
-          }}
-        />
+        <>
+          <div
+            ref={canvasHostRef}
+            style={{
+              position: 'absolute',
+              inset: 0,
+            }}
+          />
+          {hazardTooltip ? (
+            <div
+              role="tooltip"
+              style={{
+                position: 'absolute',
+                left: Math.min(hazardTooltip.x + 14, (canvasHostRef.current?.clientWidth ?? 0) - 280),
+                top: Math.max(hazardTooltip.y - 12, 8),
+                zIndex: 25,
+                maxWidth: 280,
+                padding: '10px 12px',
+                background: 'rgba(3, 12, 22, 0.92)',
+                border: `1px solid ${HAZARD_LABEL_COLOR[hazardTooltip.hazard.label] ?? 'rgba(0, 212, 180, 0.35)'}`,
+                color: '#e2f1ff',
+                fontFamily: 'var(--font-body)',
+                fontSize: 12,
+                lineHeight: 1.4,
+                pointerEvents: 'none',
+                backdropFilter: 'blur(12px)',
+              }}
+            >
+              <div
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 10,
+                  letterSpacing: '0.18em',
+                  textTransform: 'uppercase',
+                  color: HAZARD_LABEL_COLOR[hazardTooltip.hazard.label] ?? 'var(--accent)',
+                  marginBottom: 4,
+                }}
+              >
+                {hazardTooltip.hazard.id} · {hazardTooltip.hazard.label.replace(/_/g, ' ')}
+              </div>
+              <div style={{ marginBottom: 6 }}>{hazardTooltip.hazard.summary}</div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-mid)' }}>
+                severity {(hazardTooltip.hazard.severity * 100).toFixed(0)}% · confidence: geometric proxy
+              </div>
+            </div>
+          ) : null}
+        </>
       ) : (
         <iframe
           ref={iframeRef}

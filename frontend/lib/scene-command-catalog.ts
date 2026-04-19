@@ -45,6 +45,20 @@ const SOURCES_PHRASES = [
   'what sources are you using',
   'show sources',
 ];
+const SCAN_HAZARDS_PHRASES = [
+  'scan hazards',
+  'scan for hazards',
+  'scan this',
+  'scan the scene',
+  'mark hazards',
+  'mark the hazards',
+  'show hazards',
+  'show risk areas',
+  'show risks',
+  'run a hazard scan',
+  'what is wrong here',
+  'what is at risk',
+];
 const BASELINE_TERMS = ['baseline', 'now', 'today', 'current', 'present day'];
 const WORST_CASE_TERMS = ['worst case', 'highest rise', 'maximum rise'];
 
@@ -205,6 +219,10 @@ export function parseVoiceIntent(location: LocationRecord, transcript: string): 
 
   if (includesPhrase(normalized, SOURCES_PHRASES)) {
     return { type: 'explain_sources' };
+  }
+
+  if (includesPhrase(normalized, SCAN_HAZARDS_PHRASES)) {
+    return { type: 'scan_hazards' };
   }
 
   if (includesPhrase(normalized, HELP_PHRASES)) {

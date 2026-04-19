@@ -25,6 +25,7 @@ export type LocationRecord = {
   description: string;
   splatUrl: string;
   renderer?: 'auto' | 'ply' | 'splat';
+  hazardsUrl?: string;
   status: string;
   updatedAt: string;
   scene: {
@@ -48,6 +49,7 @@ export const LOCATIONS: LocationRecord[] = [
       'Baseline capture for the Seattle waterfront render. Use this route as the entry point for future location-specific scenes.',
     splatUrl: '/Cabbage-mvs_1012_04.ply',
     renderer: 'ply',
+    hazardsUrl: '/locations/maine_hazards.json',
     status: 'Render Ready',
     updatedAt: 'April 18, 2026',
     scene: {
@@ -204,6 +206,7 @@ export const LOCATIONS: LocationRecord[] = [
       'Gaussian splat render from the latest output.ply export. Use this row to open the corrected splat renderer directly.',
     splatUrl: '/maine_output.ply',
     renderer: 'splat',
+    hazardsUrl: '/locations/maine_hazards.json',
     status: 'Render Ready',
     updatedAt: 'April 18, 2026',
     scene: {
