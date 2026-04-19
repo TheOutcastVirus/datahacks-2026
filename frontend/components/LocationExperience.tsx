@@ -397,6 +397,7 @@ export default function LocationExperience({ location }: { location: LocationRec
         ref={viewerRef}
         floodProgress={floodProgress}
         floodCalibration={normalizedLocation.floodCalibration}
+        floodOverlay={normalizedLocation.floodOverlay}
         hotspots={hotspots}
         onViewerStateChange={setViewerState}
         splatUrl={normalizedLocation.splatUrl}

@@ -43,6 +43,7 @@ export default function LocationScene({
           splatUrl={location.splatUrl}
           renderer={location.renderer ?? 'auto'}
           floodProgress={floodProgress}
+          floodOverlay={location.floodOverlay}
         />
       </div>
 
