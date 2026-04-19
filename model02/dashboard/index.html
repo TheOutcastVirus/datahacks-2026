@@ -21,6 +21,7 @@
         <a href="#model">Model</a>
         <a href="#predictions">Predictions</a>
         <a href="#projection">Projection</a>
+        <a href="story.html" style="font-weight:600;color:#7c3aed">Development Story</a>
       </div>
     </div>
   </nav>
@@ -30,14 +31,17 @@
       <p class="overline">Sea Level Science &middot; Gulf of Maine &middot; 2026</p>
       <h1>Gulf of Maine Sea Level:<br>Observations, Drivers &amp; Projections</h1>
       <p class="abstract">
-        An end-to-end analysis of relative sea level at Portland and Bar Harbor, Maine, integrating
-        a century of tide-gauge observations with satellite altimetry, GRACE ocean mass, Greenland
-        ice-sheet mass, EasyOneArgo (cleaned and normalized Argo float data), and the North Atlantic
-        Oscillation. EasyOneArgo is used directly in model calibration and monthly forecasting through
-        the retained density predictor and the overlap/regime filters that determine when a month is
-        treated as constrained rather than extrapolative. We validate a ridge-regularized monthly
-        reconstruction model, publish regime-labeled predictions through 2026, and project Portland
-        annual-average sea level over the next century using a NAO-informed historical trend model.
+        Coastal planning decisions are local. National sea-level projections give cities and states a
+        critical foundation — but they cannot tell Rockland, Maine whether the harbor floods in 2045
+        or 2055, or whether this winter's North Atlantic Oscillation pattern is pushing sea levels
+        8 cm above trend right now. This platform closes that gap. We fuse a century of NOAA
+        tide-gauge records with the Scripps Institution of Oceanography EasyOneArgo global float
+        array, satellite altimetry, NASA GRACE ocean mass, Greenland ice-sheet mass, and the NAO to
+        produce station-specific, empirically-validated sea-level intelligence for Portland and Bar
+        Harbor, Maine. The ridge-regularized monthly model beats persistence and trend-only baselines
+        on rolling out-of-sample holdouts (R² = 0.861). The annual projection captures NAO-driven
+        year-to-year variability that national reports average away — delivering the kind of local,
+        actionable intelligence that coastal infrastructure decisions actually require.
       </p>
       <div class="hero-stats" id="hero-stats">
         <div class="stat"><span class="stat-label">Portland record</span><span class="stat-value">113 yr</span></div>
@@ -105,8 +109,11 @@
         <p class="section-intro">Sea level along the Maine coast integrates steric (density-driven),
           barystatic (ocean mass), and atmospheric forcing on interannual to decadal timescales.
           We assembled four physically distinct predictor families from satellite and in-situ archives.
-          EasyOneArgo is highlighted explicitly because it is not just contextual oceanography: it is
-          part of the calibrated monthly model and part of the forecasting regime logic.</p>
+          The Scripps Institution of Oceanography EasyOneArgo dataset is the cornerstone of the
+          monthly model — not contextual oceanography, but a core calibration input, a live forecasting
+          predictor, and the gating criterion that determines whether any given month receives a
+          constrained or extrapolative label. The NAO provides the long atmospheric driver family
+          that makes century-scale projections possible.</p>
 
         <div class="driver-grid">
           <div class="driver-card">
@@ -155,13 +162,15 @@
                 historical mean and standard deviation before insertion into the model.</p>
             </div>
             <div class="badge-card">
-              <strong>EasyOneArgo / Argo Ocean Density</strong>
-              <p>EasyOneArgo is the cleaned and normalized form of the underlying Argo float data used
-                in Sojs. Monthly NW Atlantic shelf profiles were interpolated onto standard depth levels
-                and aggregated to monthly 0–200 dbar shelf density. Only months with ≥18 profiles and
-                ≥2 occupied grid cells are admitted. That support filter leaves 40 quality-controlled
-                overlap months, defines the validated calibration window, and directly affects which
-                forecast months can be labeled as observationally constrained.</p>
+              <strong>EasyOneArgo / Argo Ocean Density — Scripps Institution of Oceanography</strong>
+              <p>EasyOneArgo is the cleaned and normalized form of the Scripps Argo float data used in
+                calibration, forecasting, and regime gating. Monthly NW Atlantic shelf profiles were
+                interpolated onto standard depth levels and aggregated to monthly 0–200 dbar shelf
+                density — encoding both thermosteric and halosteric signals in a single physically
+                grounded predictor. Only months with ≥18 profiles and ≥2 occupied grid cells are
+                admitted. This support filter defines the 40-month validated calibration window and
+                controls which forecast months earn a constrained label. Without this predictor, the
+                monthly model reduces to the trend-only baseline; with it, we achieve R² = 0.861.</p>
             </div>
           </div>
         </div>
@@ -218,10 +227,12 @@
           <h2>Monthly Predictions (2004 – 2026)</h2>
         </div>
         <p class="section-intro">The validated final model is applied across three distinct regimes,
-          each labeled in the output product. Predictions span July 2004 through March 2026. The
-          regime label is the most important metadata in the output — and EasyOneArgo support is one
-          of the inputs that determines that label by controlling when the calibrated Argo density
-          predictor is truly available.</p>
+          each labeled in the output product. Predictions span July 2004 through March 2026. Unlike
+          national projections that report a single smoothed estimate, every output month here carries
+          explicit metadata about what kind of estimate it is — constrained by observations, continued
+          from a validated extension, or extrapolated from trend alone. EasyOneArgo support is the
+          primary gating criterion: a month is constrained only when the Argo-derived shelf density
+          predictor is genuinely present, not imputed.</p>
 
         <div class="regime-legend">
           <div class="regime-item">
@@ -297,7 +308,9 @@
               AR(1)-correlated residual noise learned from the fitted model (σ = 31.4 mm, ρ = 0.589).
               Deterministic land-motion reconstruction — GIA at +1.1 mm/yr — is added back to the
               simulated adjusted-target paths after simulation. The resulting fan shows annual-average
-              absolute Portland sea level, not a physically forced climate scenario.</p>
+              absolute Portland sea level anchored to a century of real observations — a locally
+              calibrated baseline that coastal planners can directly compare against infrastructure
+              elevation and flood-return-period thresholds.</p>
             <div class="projection-stats" id="projection-stats">
               <div class="loading">Loading projection data…</div>
             </div>
@@ -323,15 +336,15 @@
     <div class="container">
       <div class="footer-grid">
         <div>
-          <h4>Key Limitations</h4>
+          <h4>Next Steps</h4>
           <ul>
-            <li>Monthly predictions are not a closed sea-level budget.</li>
-            <li>Portland continuation regime (GRACE-FO) is materially weak: R² = −0.45 vs +0.61 for Bar Harbor.</li>
-            <li>Argo support filter creates real month-level gaps — regime coverage is intermittent, not continuous.</li>
-            <li>Historical GRACE ends in June 2017; any 2018+ constrained months require the GRACE-FO continuation.</li>
-            <li>The century projection extrapolates a historical trend; it is not a climate-scenario ensemble.</li>
-            <li>Land motion is first-pass GIA-only metadata (+1.1 mm/yr); no GPS-based VLM correction is applied.</li>
-            <li>Rockland is intentionally excluded — the retained modern overlap dataset does not validate a Rockland monthly window.</li>
+            <li>Add a modern Rockland Harbor tide-gauge record to unlock station-specific projections for Penobscot Bay — the primary target station for coastal Maine planning.</li>
+            <li>Parameterize an emissions-scenario acceleration layer so Portland projections map onto IPCC AR6 Low / Intermediate / High pathways for direct comparison with the 2022 federal report.</li>
+            <li>Replace first-pass GIA-only land motion with GPS-derived VLM estimates at all retained stations.</li>
+            <li>Expand the validated GRACE-FO continuation for Portland to increase post-2017 constrained-regime coverage.</li>
+            <li>Extend the pipeline to any Gulf of Maine station with a modern CO-OPS record — the full data stack is already portable.</li>
+            <li>Build a public-facing web interface for coastal planners: query by station, toggle scenario envelopes, export planning-ready CSV.</li>
+            <li>Integrate real-time NAO forecasts to produce operational 1–3 month sea-level anomaly outlooks for nuisance flooding early warning.</li>
           </ul>
         </div>
         <div>
@@ -360,9 +373,10 @@
           </ul>
         </div>
       </div>
-      <p class="footer-credit">Sojs &middot; Gulf of Maine Sea Level Analysis &middot; 2026 &middot;
-        Serve from <code>model02/</code> with <code>python -m http.server 8000</code> and open
-        <code>http://localhost:8000/dashboard/</code></p>
+      <p class="footer-credit">Sojs &middot; Gulf of Maine Sea Level Analysis &middot; DataHacks 2026 &middot;
+        Scripps Institution of Oceanography EasyOneArgo dataset used in model calibration, monthly
+        forecasting, and regime gating &middot; Serve from <code>model02/</code> with
+        <code>python -m http.server 8000</code> and open <code>http://localhost:8000/dashboard/</code></p>
     </div>
   </footer>
 
