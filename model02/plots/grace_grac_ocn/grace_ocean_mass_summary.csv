@@ -1,0 +1,3 @@
+variable,time_start,time_end,time_steps,latitude_points,longitude_points,global_mean,global_std,gom_mean,gom_std,units
+lwe_thickness,2002-04-18,2017-06-10,163,180,360,8.4e-05,0.025223,0.003091,0.017094,m
+uncertainty,2002-04-18,2017-06-10,163,180,360,0.014085,0.002764,0.014062,0.002704,m

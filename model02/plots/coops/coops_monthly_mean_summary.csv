@@ -1,0 +1,4 @@
+station_name,station_id,first_month,last_month,months,mean_msl,std_msl,min_msl,max_msl
+Bar Harbor,8413320,1947-09-01,2024-12-01,864,0.0001,0.073,-0.226,0.238
+Portland,8418150,1912-01-01,2024-12-01,1356,-0.0299,0.0846,-0.266,0.225
+Rockland,8415490,1970-04-01,1987-06-01,187,0.0024,0.0541,-0.118,0.214

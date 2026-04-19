@@ -1,0 +1,15 @@
+variable,role,family,source,units,time_start,time_end,available_months,missing_months_on_union_grid,modern_overlap_months,mean,std
+rockland_msl_m,model_input,coops,NOAA CO-OPS,m,1970-04-01,1987-06-01,187,1184,0,0.00239,0.053995
+portland_msl_m,model_input,coops,NOAA CO-OPS,m,1912-01-01,2024-12-01,1356,15,159,-0.029898,0.084618
+bar_harbor_msl_m,model_input,coops,NOAA CO-OPS,m,1947-09-01,2024-12-01,864,507,159,5.7e-05,0.073007
+copernicus_sla_gom_m,model_input,copernicusmarine,Copernicus Marine,m,1993-01-01,2024-12-01,384,987,159,0.046792,0.052732
+copernicus_adt_gom_m,reference_context,copernicusmarine,Copernicus Marine,m,1993-01-01,2024-12-01,384,987,159,-0.060635,0.053098
+grace_hist_lwe_thickness_gom_m,reference_context,grace_hist,NASA PO.DAAC GRACE,m,2002-04-01,2017-06-01,161,1210,159,0.002895,0.017103
+grace_hist_uncertainty_gom_m,diagnostic_only,grace_hist,NASA PO.DAAC GRACE,m,2002-04-01,2017-06-01,161,1210,159,0.014069,0.002707
+greenland_mass_gt,reference_context,greenland_mass,NASA PO.DAAC Greenland Mass,Gt,2002-04-01,2026-02-01,250,1121,159,-3021.1437,1873.398794
+greenland_mass_sigma_gt,diagnostic_only,greenland_mass,NASA PO.DAAC Greenland Mass,Gt,2002-04-01,2026-02-01,250,1121,159,24.65896,10.828154
+argo_temperature_shelf_0_200dbar_deg_c,model_input,argo,Argo ERDDAP,degree_Celsius,2004-07-01,2026-03-01,153,1218,40,16.61863,2.470741
+argo_salinity_shelf_0_200dbar,model_input,argo,Argo ERDDAP,1,2004-07-01,2026-03-01,153,1218,40,35.7171,0.388801
+argo_density_shelf_0_200dbar_kg_m3,model_input,argo,Argo ERDDAP,kg m-3,2004-07-01,2026-03-01,153,1218,40,1026.492299,0.382233
+argo_sample_count_shelf_0_200dbar,diagnostic_only,argo,Argo ERDDAP,count,2004-07-01,2026-03-01,153,1218,40,71.0,45.328864
+argo_grid_cells_shelf_0_200dbar,diagnostic_only,argo,Argo ERDDAP,count,2004-07-01,2026-03-01,153,1218,40,6.784314,3.970382

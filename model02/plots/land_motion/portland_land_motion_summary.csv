@@ -1,0 +1,2 @@
+station_name,station_id,land_motion_kind,land_motion_source,gia_metadata_mm_yr,gia_sigma_mm_yr,vlm_mm_yr,vlm_sigma_mm_yr,relative_land_motion_mm_yr,relative_land_motion_sigma_mm_yr,notes
+Portland,8418150,combined_relative_land_motion,Sojs first-pass Portland land-motion metadata,1.1,0.2,0.0,0.8,1.1,0.8246211251235323,Deterministic first-pass site metadata for annual target adjustment. VLM is retained explicitly with uncertainty rather than hidden inside GIA.

@@ -1,0 +1,9 @@
+argopy
+copernicusmarine
+h5py
+matplotlib
+numpy
+pandas
+requests
+xarray
+netCDF4
