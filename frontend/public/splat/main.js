@@ -83,9 +83,8 @@ function quatToMat3(q) {
     ];
 }
 
-function getTrajectoryViewMatrix(t) {
+function interpolateCameraAt(t) {
     const pos = getTrajectoryPosition(t);
-    // Find the two sampled cameras that bracket t
     let camA = 0, camB = Math.min(1, cameras.length - 1);
     for (let i = 0; i < cameras.length - 1; i++) {
         if (t <= trajArcLengths[sampledTrajectoryIndices[i + 1]]) {
@@ -96,8 +95,17 @@ function getTrajectoryViewMatrix(t) {
     const tA = trajArcLengths[sampledTrajectoryIndices[camA]];
     const tB = trajArcLengths[sampledTrajectoryIndices[camB]];
     const alpha = tB > tA ? Math.max(0, Math.min(1, (t - tA) / (tB - tA))) : 0;
-    const rot = quatToMat3(slerpQuat(mat3ToQuat(cameras[camA].rotation), mat3ToQuat(cameras[camB].rotation), alpha));
-    return getViewMatrix({ position: pos, rotation: rot });
+    const cA = cameras[camA], cB = cameras[camB];
+    return {
+        position: pos,
+        rotation: quatToMat3(slerpQuat(mat3ToQuat(cA.rotation), mat3ToQuat(cB.rotation), alpha)),
+        fx: cA.fx + alpha * (cB.fx - cA.fx),
+        fy: cA.fy + alpha * (cB.fy - cA.fy),
+    };
+}
+
+function getTrajectoryViewMatrix(t) {
+    return getViewMatrix(interpolateCameraAt(t));
 }
 
 let camera;
@@ -1347,14 +1355,20 @@ async function main() {
         const TRAJ_STEP = 0.008;
         if (activeKeys.includes("ArrowLeft") && !shiftKey) {
             trajectoryT = Math.max(0, trajectoryT - TRAJ_STEP);
-            viewMatrix = getTrajectoryViewMatrix(trajectoryT);
+            const ci = interpolateCameraAt(trajectoryT);
+            viewMatrix = getViewMatrix(ci);
             inv = invert4(viewMatrix);
+            projectionMatrix = getProjectionMatrix(ci.fx, ci.fy, viewW, viewH);
+            gl.uniform2fv(u_focal, new Float32Array([ci.fx, ci.fy]));
             carousel = false;
         }
         if (activeKeys.includes("ArrowRight") && !shiftKey) {
             trajectoryT = Math.min(trajTotalLength, trajectoryT + TRAJ_STEP);
-            viewMatrix = getTrajectoryViewMatrix(trajectoryT);
+            const ci = interpolateCameraAt(trajectoryT);
+            viewMatrix = getViewMatrix(ci);
             inv = invert4(viewMatrix);
+            projectionMatrix = getProjectionMatrix(ci.fx, ci.fy, viewW, viewH);
+            gl.uniform2fv(u_focal, new Float32Array([ci.fx, ci.fy]));
             carousel = false;
         }
         if (activeKeys.includes("KeyQ")) inv = rotate4(inv, 0.01, 0, 0, 1);
