@@ -9,7 +9,7 @@ const FILLER_WORDS = new Set([
   'hey',
   'okay',
   'ok',
-  'sojs',
+  'sawjess',
 ]);
 
 const NAVIGATION_PREFIXES = ['go to', 'show', 'take me to', 'focus on', 'jump to'];
@@ -59,11 +59,19 @@ function getScenarioAliases(scenario: ScenarioRecord) {
     String(scenario.year),
   ]);
 
-  if (scenario.year === 2026 || scenario.label.toLowerCase().includes('baseline')) {
+  if (
+    scenario.id === 'baseline' ||
+    scenario.year === 2026 ||
+    scenario.label.toLowerCase().includes('baseline')
+  ) {
     for (const term of BASELINE_TERMS) aliases.add(term);
   }
 
-  if (scenario.label.toLowerCase().includes('worst')) {
+  if (
+    scenario.id === 'worst-case' ||
+    scenario.year === 2100 ||
+    scenario.label.toLowerCase().includes('worst')
+  ) {
     for (const term of WORST_CASE_TERMS) aliases.add(term);
   }
 

@@ -1,74 +1,98 @@
-// Sea level rise relative to 2026 baseline, derived from NOAA tidal predictions.
-// Source: predicted_MSL + predicted_trend from sla_prediction_timeseries.csv,
-// averaged per year, normalized so 2026 = 0.
-const SEA_LEVEL_DATA: Record<number, number> = {
-  2026: 0.0,
-  2027: 0.0577,
-  2028: 0.1416,
-  2029: 0.2604,
-  2030: 0.3746,
-  2031: 0.4157,
-  2032: 0.4397,
-  2033: 0.4631,
-  2034: 0.4859,
-  2035: 0.5093,
-  2036: 0.5322,
-  2037: 0.5556,
-  2038: 0.5784,
-  2039: 0.6012,
-  2040: 0.6247,
-  2041: 0.6475,
-  2042: 0.6703,
-  2043: 0.6938,
-  2044: 0.7166,
-  2045: 0.7394,
-  2046: 0.7629,
-  2047: 0.7857,
-  2048: 0.8085,
-  2049: 0.8319,
-  2050: 0.8548,
-  2051: 0.8776,
-  2052: 0.9004,
-  2053: 0.9239,
-  2054: 0.9467,
-  2055: 0.9695,
-  2056: 0.9930,
-  2057: 1.0158,
-  2058: 1.0386,
-  2059: 1.0621,
-  2060: 1.0849,
-  2061: 1.1077,
-  2062: 1.1311,
-  2063: 1.1540,
-  2064: 1.1768,
-  2065: 1.2002,
-  2066: 1.2231,
-  2067: 1.2459,
-  2068: 1.2693,
-  2069: 1.2922,
-  2070: 1.3150,
+import curve from '@/data/sea-level/california-demo-default.json';
+
+export type SeaLevelCurveRecord = {
+  year: number;
+  absoluteMslMeters: number;
+  riseFrom2000Meters: number;
+  riseFrom2026Meters: number;
+  isExtrapolated: boolean;
 };
 
-// Linear rate extrapolated from 2069–2070 trend for years beyond model coverage.
-const EXTRAPOLATION_RATE_M_PER_YEAR = 0.02284;
-const LAST_DATA_YEAR = 2070;
-const LAST_DATA_VALUE = SEA_LEVEL_DATA[LAST_DATA_YEAR];
+export type SeaLevelCurveFile = {
+  curveId: 'california-demo-default';
+  projectName: 'SAWJESS';
+  sourceLabel: string;
+  sourceRegionLabel: string;
+  sourceStationId: string;
+  baselineYearScientific: 2000;
+  baselineYearUi: 2026;
+  aggregation: 'calendar_year_mean';
+  extrapolationMethod: 'ols_last_10_years';
+  records: SeaLevelCurveRecord[];
+};
 
-/**
- * Returns predicted sea level rise in meters relative to the 2026 baseline.
- * Interpolates between known years; extrapolates linearly beyond 2070.
- * Returns 0 for years before 2026.
- */
-export function getSeaLevel(year: number): number {
-  if (year <= 2026) return 0;
-  if (year > LAST_DATA_YEAR) {
-    return LAST_DATA_VALUE + EXTRAPOLATION_RATE_M_PER_YEAR * (year - LAST_DATA_YEAR);
+const seaLevelCurve = curve as SeaLevelCurveFile;
+const curveRecords = seaLevelCurve.records;
+const curveByYear = new Map<number, SeaLevelCurveRecord>(
+  curveRecords.map((record) => [record.year, record]),
+);
+const firstRecord = curveRecords[0];
+const lastRecord = curveRecords[curveRecords.length - 1];
+
+function interpolate(left: SeaLevelCurveRecord, right: SeaLevelCurveRecord, year: number) {
+  const span = right.year - left.year;
+  if (span <= 0) {
+    return left.riseFrom2026Meters;
   }
-  const lo = Math.floor(year);
-  const hi = Math.ceil(year);
-  if (lo === hi) return SEA_LEVEL_DATA[lo] ?? 0;
-  const frac = year - lo;
-  return (SEA_LEVEL_DATA[lo] ?? 0) * (1 - frac) + (SEA_LEVEL_DATA[hi] ?? 0) * frac;
+
+  const progress = (year - left.year) / span;
+  return left.riseFrom2026Meters + (right.riseFrom2026Meters - left.riseFrom2026Meters) * progress;
 }
 
-export { SEA_LEVEL_DATA };
+export function getSeaLevel(year: number): number {
+  if (year <= seaLevelCurve.baselineYearUi) {
+    return 0;
+  }
+
+  if (year >= lastRecord.year) {
+    return lastRecord.riseFrom2026Meters;
+  }
+
+  const exact = curveByYear.get(year);
+  if (exact) {
+    return exact.riseFrom2026Meters;
+  }
+
+  const leftYear = Math.floor(year);
+  const rightYear = Math.ceil(year);
+  const left = curveByYear.get(leftYear);
+  const right = curveByYear.get(rightYear);
+
+  if (!left && !right) {
+    return 0;
+  }
+
+  if (!left) {
+    return right!.riseFrom2026Meters;
+  }
+
+  if (!right) {
+    return left.riseFrom2026Meters;
+  }
+
+  return interpolate(left, right, year);
+}
+
+export function getSeaLevelCurveId() {
+  return seaLevelCurve.curveId;
+}
+
+export function getSeaLevelSourceLabel() {
+  return `${seaLevelCurve.sourceLabel} (${seaLevelCurve.sourceRegionLabel}, station ${seaLevelCurve.sourceStationId})`;
+}
+
+export function isExtrapolatedYear(year: number) {
+  if (year <= firstRecord.year) {
+    return false;
+  }
+
+  if (year >= lastRecord.year) {
+    return lastRecord.isExtrapolated;
+  }
+
+  const left = curveByYear.get(Math.floor(year));
+  const right = curveByYear.get(Math.ceil(year));
+  return Boolean(left?.isExtrapolated || right?.isExtrapolated);
+}
+
+export { seaLevelCurve };
