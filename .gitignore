@@ -9,3 +9,5 @@ frontend/public/output.ply
 .env.*
 !.env.example
 .ply
+3dgs/maine
+3dgs/uk
