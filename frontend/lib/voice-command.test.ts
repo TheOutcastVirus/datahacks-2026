@@ -12,7 +12,7 @@ import {
 const location = LOCATIONS[0];
 
 test('normalizes filler words and punctuation', () => {
-  assert.equal(normalizeTranscript('Hey Sojs, show 2050 please!'), 'show 2050 please');
+  assert.equal(normalizeTranscript('Hey SAWJESS, show 2050 please!'), 'show 2050 please');
 });
 
 test('matches hotspot aliases before generic commands', () => {
@@ -41,6 +41,6 @@ test('falls back to unknown for unrelated phrases', () => {
 test('builds grounded response text', () => {
   const scenario = location.scenarios[1];
   assert.match(buildScenarioResponse(location, scenario).speech, /2050 outlook/i);
-  assert.match(buildSourcesResponse(location).speech, /NASA Ice Cap Metrics/);
+  assert.match(buildSourcesResponse(location).speech, /california-derived demo curve/i);
   assert.match(buildUnknownResponse().caption, /show 2050/i);
 });

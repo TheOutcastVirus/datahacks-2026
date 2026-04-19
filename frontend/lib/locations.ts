@@ -1,3 +1,8 @@
+import {
+  getSeaLevel,
+  getSeaLevelCurveId,
+  getSeaLevelSourceLabel,
+} from '@/lib/sea-level-data';
 import type { CameraPose } from '@/lib/viewer-types';
 
 export type SceneHotspot = {
@@ -18,13 +23,42 @@ export type ScenarioRecord = {
   color: string;
 };
 
+export type FloodCalibration = {
+  startY: number;
+  endY: number;
+  minX?: number;
+  maxX?: number;
+  minZ?: number;
+  maxZ?: number;
+};
+
+export type FloodOverlayPoint = {
+  x: number;
+  z: number;
+};
+
+export type FloodOverlayRegion = {
+  id: string;
+  label: string;
+  polygon: FloodOverlayPoint[];
+  minProgress?: number;
+  maxProgress?: number;
+};
+
+export type FloodOverlay = {
+  regions: FloodOverlayRegion[];
+};
+
 export type LocationRecord = {
   slug: string;
   name: string;
   region: string;
   description: string;
+  seaLevelCurveId: string;
   splatUrl: string;
   renderer?: 'auto' | 'ply' | 'splat';
+  floodCalibration?: FloodCalibration;
+  floodOverlay?: FloodOverlay;
   status: string;
   updatedAt: string;
   scene: {
@@ -39,6 +73,33 @@ export type LocationRecord = {
   defaultHotspotId: string;
 };
 
+const DEMO_CURVE_ID = getSeaLevelCurveId();
+
+function buildScenario(
+  id: ScenarioRecord['id'],
+  label: string,
+  year: number,
+  narration: string,
+  color: string,
+): ScenarioRecord {
+  return {
+    id,
+    label,
+    year,
+    riseMeters: getSeaLevel(year),
+    narration,
+    color,
+  };
+}
+
+function buildSources(localSource: string): string[] {
+  return [
+    getSeaLevelSourceLabel(),
+    'California-derived demo curve applied uniformly across SAWJESS scenes for the hackathon build.',
+    localSource,
+  ];
+}
+
 export const LOCATIONS: LocationRecord[] = [
   {
     slug: 'seattle-waterfront',
@@ -46,17 +107,52 @@ export const LOCATIONS: LocationRecord[] = [
     region: 'Seattle, Washington',
     description:
       'Baseline capture for the Seattle waterfront render. Use this route as the entry point for future location-specific scenes.',
+    seaLevelCurveId: DEMO_CURVE_ID,
     splatUrl: '/Cabbage-mvs_1012_04.ply',
     renderer: 'ply',
+    floodOverlay: {
+      regions: [
+        {
+          id: 'shoreline-band',
+          label: 'Shoreline band',
+          minProgress: 0.08,
+          maxProgress: 0.72,
+          polygon: [
+            { x: 0.08, z: 0.18 },
+            { x: 0.22, z: 0.12 },
+            { x: 0.58, z: 0.10 },
+            { x: 0.92, z: 0.15 },
+            { x: 0.95, z: 0.30 },
+            { x: 0.70, z: 0.42 },
+            { x: 0.34, z: 0.46 },
+            { x: 0.12, z: 0.36 },
+          ],
+        },
+        {
+          id: 'promenade-pocket',
+          label: 'Promenade pocket',
+          minProgress: 0.34,
+          maxProgress: 0.9,
+          polygon: [
+            { x: 0.24, z: 0.34 },
+            { x: 0.46, z: 0.28 },
+            { x: 0.60, z: 0.35 },
+            { x: 0.54, z: 0.52 },
+            { x: 0.30, z: 0.56 },
+            { x: 0.18, z: 0.46 },
+          ],
+        },
+      ],
+    },
     status: 'Render Ready',
     updatedAt: 'April 18, 2026',
     scene: {
       year: 2026,
-      rise: 0,
+      rise: getSeaLevel(2026),
       label: 'Baseline',
       color: '#00d4b4',
     },
-    sources: ['NASA Ice Cap Metrics', 'NOAA Tidal Records', 'Local shoreline survey'],
+    sources: buildSources('Seattle shoreline render, flood overlay, and hotspot calibration.'),
     hotspots: [
       {
         id: 'waterfront',
@@ -108,149 +204,89 @@ export const LOCATIONS: LocationRecord[] = [
       },
     ],
     scenarios: [
-      {
-        id: 'baseline',
-        label: 'Baseline',
-        year: 2026,
-        riseMeters: 0,
-        narration:
-          'Baseline view with present-day shoreline conditions and no added sea-level rise.',
-        color: '#00d4b4',
-      },
-      {
-        id: 'mid-century',
-        label: '2050 Outlook',
-        year: 2050,
-        riseMeters: 0.15,
-        narration:
-          'Mid-century rise begins to pressure the lowest waterfront paths and exposed transport edges.',
-        color: '#38bdf8',
-      },
-      {
-        id: 'worst-case',
-        label: '2100 Projection',
-        year: 2100,
-        riseMeters: 0.35,
-        narration:
-          'End-of-century projection based on observed tidal trends extrapolated from NOAA station data.',
-        color: '#f97316',
-      },
+      buildScenario(
+        'baseline',
+        'Baseline',
+        2026,
+        'Baseline shoreline conditions with the 2026 California demo curve applied as zero added water-level offset.',
+        '#00d4b4',
+      ),
+      buildScenario(
+        'mid-century',
+        '2050 Outlook',
+        2050,
+        'The shared California demo curve adds a modest 2050 offset to the Seattle scene for comparison.',
+        '#38bdf8',
+      ),
+      buildScenario(
+        'worst-case',
+        '2100 Projection',
+        2100,
+        'The 2100 view uses the extrapolated California demo curve as a global vertical water-level signal.',
+        '#f97316',
+      ),
     ],
     defaultHotspotId: 'waterfront',
   },
   {
-    slug: 'annaberg',
-    name: 'Annaberg Sugar Plantation',
-    region: 'St. John, U.S. Virgin Islands',
-    description:
-      'Aerial photogrammetry capture of the Annaberg Sugar Plantation ruins. Gaussian splat render from the latest output.ply export.',
-    splatUrl: '/annaberg_output.ply',
-    renderer: 'splat',
-    status: 'Render Ready',
-    updatedAt: 'April 19, 2026',
-    scene: {
-      year: 2026,
-      rise: 0,
-      label: 'Output',
-      color: '#f59e0b',
-    },
-    sources: ['output.ply export', 'Gaussian splat renderer'],
-    hotspots: [
-      {
-        id: 'render-center',
-        name: 'Render Center',
-        aliases: ['render center', 'output', 'splat', 'scene', 'plantation'],
-        description: 'The center view for the Annaberg Sugar Plantation splat render.',
-        cameraPose: {
-          position: [-1.0, 0.5, 1.2],
-          target: [0, 0, 0],
-        },
-        explainText: 'Showing the Annaberg Sugar Plantation ruins from the aerial Gaussian splat render.',
-      },
-    ],
-    scenarios: [
-      {
-        id: 'baseline',
-        label: 'Baseline',
-        year: 2026,
-        riseMeters: 0,
-        narration: 'Baseline render capture of Annaberg Sugar Plantation with no added sea-level rise.',
-        color: '#f59e0b',
-      },
-      {
-        id: 'mid-century',
-        label: '2050 Outlook',
-        year: 2050,
-        riseMeters: 0.74,
-        narration: 'Mid-century rise preview for Annaberg.',
-        color: '#38bdf8',
-      },
-      {
-        id: 'worst-case',
-        label: '2100 Worst Case',
-        year: 2100,
-        riseMeters: 1.92,
-        narration: 'Highest-rise preview for Annaberg.',
-        color: '#f97316',
-      },
-    ],
-    defaultHotspotId: 'render-center',
-  },
-  {
     slug: 'maine',
     name: 'Maine',
-    region: 'Local render capture',
+    region: 'Maine',
     description:
-      'Gaussian splat render from the latest output.ply export. Use this row to open the corrected splat renderer directly.',
+      'Gaussian splat render for Maine. Use this route to open the corrected renderer directly.',
+    seaLevelCurveId: DEMO_CURVE_ID,
     splatUrl: '/maine_output.ply',
     renderer: 'splat',
+    floodCalibration: {
+      startY: -1.5,
+      endY: 0.8,
+    },
     status: 'Render Ready',
     updatedAt: 'April 18, 2026',
     scene: {
       year: 2026,
-      rise: 0,
-      label: 'Output',
+      rise: getSeaLevel(2026),
+      label: 'Baseline',
       color: '#7dd3fc',
     },
-    sources: ['output.ply export', 'Gaussian splat renderer'],
+    sources: buildSources('Maine Gaussian splat render and local flood calibration.'),
     hotspots: [
       {
         id: 'render-center',
         name: 'Render Center',
-        aliases: ['render center', 'output', 'splat', 'scene'],
-        description: 'The center view for the latest output.ply export.',
+        aliases: ['render center', 'output', 'splat', 'scene', 'slam output', 'slam'],
+        description:
+          'Opening view matches training camera frame_0001 from the Maine export.',
         cameraPose: {
           position: [-3.5, 2, 5.5],
           target: [0, 0.4, 0],
         },
-        explainText: 'Showing the render center for the latest output.ply export.',
+        explainText:
+          'Default splat view uses the first training-camera pose from the Maine export.',
       },
     ],
     scenarios: [
-      {
-        id: 'baseline',
-        label: 'Baseline',
-        year: 2026,
-        riseMeters: 0,
-        narration: 'Baseline render capture from output.ply with no added sea-level rise.',
-        color: '#7dd3fc',
-      },
-      {
-        id: 'mid-century',
-        label: '2050 Outlook',
-        year: 2050,
-        riseMeters: 0.15,
-        narration: 'Mid-century rise preview for the output.ply render.',
-        color: '#38bdf8',
-      },
-      {
-        id: 'worst-case',
-        label: '2100 Projection',
-        year: 2100,
-        riseMeters: 0.35,
-        narration: 'End-of-century projection based on observed tidal trends extrapolated from NOAA station data.',
-        color: '#f97316',
-      },
+      buildScenario(
+        'baseline',
+        'Baseline',
+        2026,
+        'Baseline Maine render with the shared California demo curve pinned to the 2026 zero-offset year.',
+        '#7dd3fc',
+      ),
+      buildScenario(
+        'mid-century',
+        '2050 Outlook',
+        2050,
+        'The Maine scene reuses the same California-derived 2050 demo curve for a consistent story across locations.',
+        '#38bdf8',
+      ),
+      buildScenario(
+        'worst-case',
+        '2100 Projection',
+        2100,
+        'This 2100 Maine view uses the extrapolated California demo curve rather than a Maine-specific inundation model.',
+        '#f97316',
+      ),
     ],
     defaultHotspotId: 'render-center',
   },

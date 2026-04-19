@@ -1,0 +1,538 @@
+{
+  "curveId": "california-demo-default",
+  "projectName": "SAWJESS",
+  "sourceLabel": "NOAA monthly mean sea level forecast processed in Databricks",
+  "sourceRegionLabel": "California demo curve applied to all scenes",
+  "sourceStationId": "9410230",
+  "baselineYearScientific": 2000,
+  "baselineYearUi": 2026,
+  "aggregation": "calendar_year_mean",
+  "extrapolationMethod": "ols_last_10_years",
+  "records": [
+    {
+      "year": 2026,
+      "absoluteMslMeters": 0.898867,
+      "riseFrom2000Meters": 0.091867,
+      "riseFrom2026Meters": 0,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2027,
+      "absoluteMslMeters": 0.903939,
+      "riseFrom2000Meters": 0.096939,
+      "riseFrom2026Meters": 0.005072,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2028,
+      "absoluteMslMeters": 0.911274,
+      "riseFrom2000Meters": 0.104274,
+      "riseFrom2026Meters": 0.012407,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2029,
+      "absoluteMslMeters": 0.92169,
+      "riseFrom2000Meters": 0.11469,
+      "riseFrom2026Meters": 0.022823,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2030,
+      "absoluteMslMeters": 0.931657,
+      "riseFrom2000Meters": 0.124657,
+      "riseFrom2026Meters": 0.03279,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2031,
+      "absoluteMslMeters": 0.935274,
+      "riseFrom2000Meters": 0.128274,
+      "riseFrom2026Meters": 0.036407,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2032,
+      "absoluteMslMeters": 0.937344,
+      "riseFrom2000Meters": 0.130344,
+      "riseFrom2026Meters": 0.038477,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2033,
+      "absoluteMslMeters": 0.939401,
+      "riseFrom2000Meters": 0.132401,
+      "riseFrom2026Meters": 0.040534,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2034,
+      "absoluteMslMeters": 0.941436,
+      "riseFrom2000Meters": 0.134436,
+      "riseFrom2026Meters": 0.042569,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2035,
+      "absoluteMslMeters": 0.94346,
+      "riseFrom2000Meters": 0.13646,
+      "riseFrom2026Meters": 0.044594,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2036,
+      "absoluteMslMeters": 0.94548,
+      "riseFrom2000Meters": 0.13848,
+      "riseFrom2026Meters": 0.046614,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2037,
+      "absoluteMslMeters": 0.947498,
+      "riseFrom2000Meters": 0.140498,
+      "riseFrom2026Meters": 0.048632,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2038,
+      "absoluteMslMeters": 0.949515,
+      "riseFrom2000Meters": 0.142515,
+      "riseFrom2026Meters": 0.050649,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2039,
+      "absoluteMslMeters": 0.951532,
+      "riseFrom2000Meters": 0.144532,
+      "riseFrom2026Meters": 0.052665,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2040,
+      "absoluteMslMeters": 0.953548,
+      "riseFrom2000Meters": 0.146548,
+      "riseFrom2026Meters": 0.054681,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2041,
+      "absoluteMslMeters": 0.955564,
+      "riseFrom2000Meters": 0.148564,
+      "riseFrom2026Meters": 0.056697,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2042,
+      "absoluteMslMeters": 0.95758,
+      "riseFrom2000Meters": 0.15058,
+      "riseFrom2026Meters": 0.058713,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2043,
+      "absoluteMslMeters": 0.959596,
+      "riseFrom2000Meters": 0.152596,
+      "riseFrom2026Meters": 0.06073,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2044,
+      "absoluteMslMeters": 0.961612,
+      "riseFrom2000Meters": 0.154612,
+      "riseFrom2026Meters": 0.062746,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2045,
+      "absoluteMslMeters": 0.963628,
+      "riseFrom2000Meters": 0.156628,
+      "riseFrom2026Meters": 0.064762,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2046,
+      "absoluteMslMeters": 0.965644,
+      "riseFrom2000Meters": 0.158644,
+      "riseFrom2026Meters": 0.066778,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2047,
+      "absoluteMslMeters": 0.96766,
+      "riseFrom2000Meters": 0.16066,
+      "riseFrom2026Meters": 0.068794,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2048,
+      "absoluteMslMeters": 0.969676,
+      "riseFrom2000Meters": 0.162676,
+      "riseFrom2026Meters": 0.07081,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2049,
+      "absoluteMslMeters": 0.971692,
+      "riseFrom2000Meters": 0.164692,
+      "riseFrom2026Meters": 0.072826,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2050,
+      "absoluteMslMeters": 0.973708,
+      "riseFrom2000Meters": 0.166708,
+      "riseFrom2026Meters": 0.074842,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2051,
+      "absoluteMslMeters": 0.975724,
+      "riseFrom2000Meters": 0.168724,
+      "riseFrom2026Meters": 0.076858,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2052,
+      "absoluteMslMeters": 0.97774,
+      "riseFrom2000Meters": 0.17074,
+      "riseFrom2026Meters": 0.078874,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2053,
+      "absoluteMslMeters": 0.979757,
+      "riseFrom2000Meters": 0.172757,
+      "riseFrom2026Meters": 0.08089,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2054,
+      "absoluteMslMeters": 0.981773,
+      "riseFrom2000Meters": 0.174773,
+      "riseFrom2026Meters": 0.082906,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2055,
+      "absoluteMslMeters": 0.983789,
+      "riseFrom2000Meters": 0.176789,
+      "riseFrom2026Meters": 0.084922,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2056,
+      "absoluteMslMeters": 0.985805,
+      "riseFrom2000Meters": 0.178805,
+      "riseFrom2026Meters": 0.086938,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2057,
+      "absoluteMslMeters": 0.987821,
+      "riseFrom2000Meters": 0.180821,
+      "riseFrom2026Meters": 0.088954,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2058,
+      "absoluteMslMeters": 0.989837,
+      "riseFrom2000Meters": 0.182837,
+      "riseFrom2026Meters": 0.09097,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2059,
+      "absoluteMslMeters": 0.991853,
+      "riseFrom2000Meters": 0.184853,
+      "riseFrom2026Meters": 0.092986,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2060,
+      "absoluteMslMeters": 0.993869,
+      "riseFrom2000Meters": 0.186869,
+      "riseFrom2026Meters": 0.095002,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2061,
+      "absoluteMslMeters": 0.995885,
+      "riseFrom2000Meters": 0.188885,
+      "riseFrom2026Meters": 0.097018,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2062,
+      "absoluteMslMeters": 0.997901,
+      "riseFrom2000Meters": 0.190901,
+      "riseFrom2026Meters": 0.099034,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2063,
+      "absoluteMslMeters": 0.999917,
+      "riseFrom2000Meters": 0.192917,
+      "riseFrom2026Meters": 0.10105,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2064,
+      "absoluteMslMeters": 1.001933,
+      "riseFrom2000Meters": 0.194933,
+      "riseFrom2026Meters": 0.103066,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2065,
+      "absoluteMslMeters": 1.003949,
+      "riseFrom2000Meters": 0.196949,
+      "riseFrom2026Meters": 0.105082,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2066,
+      "absoluteMslMeters": 1.005965,
+      "riseFrom2000Meters": 0.198965,
+      "riseFrom2026Meters": 0.107098,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2067,
+      "absoluteMslMeters": 1.007981,
+      "riseFrom2000Meters": 0.200981,
+      "riseFrom2026Meters": 0.109114,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2068,
+      "absoluteMslMeters": 1.009997,
+      "riseFrom2000Meters": 0.202997,
+      "riseFrom2026Meters": 0.11113,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2069,
+      "absoluteMslMeters": 1.012013,
+      "riseFrom2000Meters": 0.205013,
+      "riseFrom2026Meters": 0.113146,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2070,
+      "absoluteMslMeters": 1.014029,
+      "riseFrom2000Meters": 0.207029,
+      "riseFrom2026Meters": 0.115162,
+      "isExtrapolated": false
+    },
+    {
+      "year": 2071,
+      "absoluteMslMeters": 1.016045,
+      "riseFrom2000Meters": 0.209045,
+      "riseFrom2026Meters": 0.117178,
+      "isExtrapolated": true
+    },
+    {
+      "year": 2072,
+      "absoluteMslMeters": 1.018061,
+      "riseFrom2000Meters": 0.211061,
+      "riseFrom2026Meters": 0.119194,
+      "isExtrapolated": true
+    },
+    {
+      "year": 2073,
+      "absoluteMslMeters": 1.020077,
+      "riseFrom2000Meters": 0.213077,
+      "riseFrom2026Meters": 0.12121,
+      "isExtrapolated": true
+    },
+    {
+      "year": 2074,
+      "absoluteMslMeters": 1.022093,
+      "riseFrom2000Meters": 0.215093,
+      "riseFrom2026Meters": 0.123226,
+      "isExtrapolated": true
+    },
+    {
+      "year": 2075,
+      "absoluteMslMeters": 1.024109,
+      "riseFrom2000Meters": 0.217109,
+      "riseFrom2026Meters": 0.125242,
+      "isExtrapolated": true
+    },
+    {
+      "year": 2076,
+      "absoluteMslMeters": 1.026125,
+      "riseFrom2000Meters": 0.219125,
+      "riseFrom2026Meters": 0.127258,
+      "isExtrapolated": true
+    },
+    {
+      "year": 2077,
+      "absoluteMslMeters": 1.028141,
+      "riseFrom2000Meters": 0.221141,
+      "riseFrom2026Meters": 0.129274,
+      "isExtrapolated": true
+    },
+    {
+      "year": 2078,
+      "absoluteMslMeters": 1.030157,
+      "riseFrom2000Meters": 0.223157,
+      "riseFrom2026Meters": 0.13129,
+      "isExtrapolated": true
+    },
+    {
+      "year": 2079,
+      "absoluteMslMeters": 1.032173,
+      "riseFrom2000Meters": 0.225173,
+      "riseFrom2026Meters": 0.133306,
+      "isExtrapolated": true
+    },
+    {
+      "year": 2080,
+      "absoluteMslMeters": 1.034189,
+      "riseFrom2000Meters": 0.227189,
+      "riseFrom2026Meters": 0.135322,
+      "isExtrapolated": true
+    },
+    {
+      "year": 2081,
+      "absoluteMslMeters": 1.036205,
+      "riseFrom2000Meters": 0.229205,
+      "riseFrom2026Meters": 0.137339,
+      "isExtrapolated": true
+    },
+    {
+      "year": 2082,
+      "absoluteMslMeters": 1.038221,
+      "riseFrom2000Meters": 0.231221,
+      "riseFrom2026Meters": 0.139355,
+      "isExtrapolated": true
+    },
+    {
+      "year": 2083,
+      "absoluteMslMeters": 1.040237,
+      "riseFrom2000Meters": 0.233237,
+      "riseFrom2026Meters": 0.141371,
+      "isExtrapolated": true
+    },
+    {
+      "year": 2084,
+      "absoluteMslMeters": 1.042253,
+      "riseFrom2000Meters": 0.235253,
+      "riseFrom2026Meters": 0.143387,
+      "isExtrapolated": true
+    },
+    {
+      "year": 2085,
+      "absoluteMslMeters": 1.044269,
+      "riseFrom2000Meters": 0.237269,
+      "riseFrom2026Meters": 0.145403,
+      "isExtrapolated": true
+    },
+    {
+      "year": 2086,
+      "absoluteMslMeters": 1.046285,
+      "riseFrom2000Meters": 0.239285,
+      "riseFrom2026Meters": 0.147419,
+      "isExtrapolated": true
+    },
+    {
+      "year": 2087,
+      "absoluteMslMeters": 1.048301,
+      "riseFrom2000Meters": 0.241301,
+      "riseFrom2026Meters": 0.149435,
+      "isExtrapolated": true
+    },
+    {
+      "year": 2088,
+      "absoluteMslMeters": 1.050317,
+      "riseFrom2000Meters": 0.243317,
+      "riseFrom2026Meters": 0.151451,
+      "isExtrapolated": true
+    },
+    {
+      "year": 2089,
+      "absoluteMslMeters": 1.052333,
+      "riseFrom2000Meters": 0.245333,
+      "riseFrom2026Meters": 0.153467,
+      "isExtrapolated": true
+    },
+    {
+      "year": 2090,
+      "absoluteMslMeters": 1.05435,
+      "riseFrom2000Meters": 0.24735,
+      "riseFrom2026Meters": 0.155483,
+      "isExtrapolated": true
+    },
+    {
+      "year": 2091,
+      "absoluteMslMeters": 1.056366,
+      "riseFrom2000Meters": 0.249366,
+      "riseFrom2026Meters": 0.157499,
+      "isExtrapolated": true
+    },
+    {
+      "year": 2092,
+      "absoluteMslMeters": 1.058382,
+      "riseFrom2000Meters": 0.251382,
+      "riseFrom2026Meters": 0.159515,
+      "isExtrapolated": true
+    },
+    {
+      "year": 2093,
+      "absoluteMslMeters": 1.060398,
+      "riseFrom2000Meters": 0.253398,
+      "riseFrom2026Meters": 0.161531,
+      "isExtrapolated": true
+    },
+    {
+      "year": 2094,
+      "absoluteMslMeters": 1.062414,
+      "riseFrom2000Meters": 0.255414,
+      "riseFrom2026Meters": 0.163547,
+      "isExtrapolated": true
+    },
+    {
+      "year": 2095,
+      "absoluteMslMeters": 1.06443,
+      "riseFrom2000Meters": 0.25743,
+      "riseFrom2026Meters": 0.165563,
+      "isExtrapolated": true
+    },
+    {
+      "year": 2096,
+      "absoluteMslMeters": 1.066446,
+      "riseFrom2000Meters": 0.259446,
+      "riseFrom2026Meters": 0.167579,
+      "isExtrapolated": true
+    },
+    {
+      "year": 2097,
+      "absoluteMslMeters": 1.068462,
+      "riseFrom2000Meters": 0.261462,
+      "riseFrom2026Meters": 0.169595,
+      "isExtrapolated": true
+    },
+    {
+      "year": 2098,
+      "absoluteMslMeters": 1.070478,
+      "riseFrom2000Meters": 0.263478,
+      "riseFrom2026Meters": 0.171611,
+      "isExtrapolated": true
+    },
+    {
+      "year": 2099,
+      "absoluteMslMeters": 1.072494,
+      "riseFrom2000Meters": 0.265494,
+      "riseFrom2026Meters": 0.173627,
+      "isExtrapolated": true
+    },
+    {
+      "year": 2100,
+      "absoluteMslMeters": 1.07451,
+      "riseFrom2000Meters": 0.26751,
+      "riseFrom2026Meters": 0.175643,
+      "isExtrapolated": true
+    }
+  ]
+}
