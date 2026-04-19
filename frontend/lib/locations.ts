@@ -189,8 +189,8 @@ export const LOCATIONS: LocationRecord[] = [
       },
       {
         id: 'worst-case',
-        label: '2100 Worst Case',
-        year: 2100,
+        label: '2126 Worst Case',
+        year: 2126,
         riseMeters: 1.92,
         narration: 'Highest-rise preview for Annaberg.',
         color: '#f97316',
@@ -248,8 +248,8 @@ export const LOCATIONS: LocationRecord[] = [
       },
       {
         id: 'worst-case',
-        label: '2100 Projection',
-        year: 2100,
+        label: '2126 Projection',
+        year: 2126,
         riseMeters: 0.35,
         narration: 'End-of-century projection based on observed tidal trends extrapolated from NOAA station data.',
         color: '#f97316',

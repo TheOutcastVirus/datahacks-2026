@@ -107,19 +107,21 @@ export default function SeaLevelTimeline({ sliderYear, riseMeters, onYearChange,
         <input
           type="range"
           min={2026}
-          max={2100}
+          max={2126}
           step={1}
           value={sliderYear}
           onChange={e => {
             const year = Number.parseInt(e.target.value, 10);
-            onYearChange(year, getSeaLevel(year));
+            void getSeaLevel(year).then((rise) => {
+              onYearChange(year, rise);
+            });
           }}
           className="stats-slider"
           style={{ width: '100%', accentColor: phase.color }}
         />
         <div style={{ position: 'relative', height: 22, marginTop: 2 }}>
           {MILESTONES.map(m => {
-            const pos = ((m.year - 2026) / (2100 - 2026)) * 100;
+            const pos = ((m.year - 2026) / (2126 - 2026)) * 100;
             return (
               <div key={m.year} style={{ position: 'absolute', left: `${pos}%`, transform: 'translateX(-50%)', textAlign: 'center' }}>
                 <div style={{ width: 1, height: 4, background: 'rgba(255,255,255,0.18)', margin: '0 auto 2px' }} />
@@ -129,7 +131,7 @@ export default function SeaLevelTimeline({ sliderYear, riseMeters, onYearChange,
           })}
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: 8, color: 'rgba(255,255,255,0.18)', marginTop: 2 }}>
-          <span>2026</span><span>2100</span>
+          <span>2026</span><span>2126</span>
         </div>
       </div>
 

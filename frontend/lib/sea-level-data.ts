@@ -1,9 +1,15 @@
-import projectionsCsv from '../public/projections.csv';
-
 type ProjectionRow = {
   year: number;
   high: number;
 };
+
+type SeaLevelDataset = {
+  data: Record<number, number>;
+  lastYear: number;
+  extrapolationRate: number;
+};
+
+let seaLevelDatasetPromise: Promise<SeaLevelDataset> | null = null;
 
 function parseProjectionRows(csvText: string): ProjectionRow[] {
   return csvText
@@ -22,43 +28,65 @@ function parseProjectionRows(csvText: string): ProjectionRow[] {
     .sort((a, b) => a.year - b.year);
 }
 
-function buildSeaLevelData(rows: ProjectionRow[]): Record<number, number> {
-  return rows.reduce<Record<number, number>>(
-    (data, row) => {
-      data[row.year] = row.high;
-      return data;
+function buildSeaLevelDataset(rows: ProjectionRow[]): SeaLevelDataset {
+  const data = rows.reduce<Record<number, number>>(
+    (accumulator, row) => {
+      accumulator[row.year] = row.high;
+      return accumulator;
     },
     { 2026: 0 },
   );
+  const lastYear = rows[rows.length - 1]?.year ?? 2026;
+  const lastValue = data[lastYear] ?? 0;
+  const previousValue = data[lastYear - 1] ?? lastValue;
+
+  return {
+    data,
+    lastYear,
+    extrapolationRate: lastValue - previousValue,
+  };
 }
 
-const projectionRows = parseProjectionRows(projectionsCsv);
-const SEA_LEVEL_DATA: Record<number, number> = buildSeaLevelData(projectionRows);
-const LAST_DATA_YEAR = projectionRows[projectionRows.length - 1]?.year ?? 2026;
-const LAST_DATA_VALUE = SEA_LEVEL_DATA[LAST_DATA_YEAR] ?? 0;
-const PREVIOUS_DATA_VALUE = SEA_LEVEL_DATA[LAST_DATA_YEAR - 1] ?? LAST_DATA_VALUE;
+async function loadSeaLevelDataset(): Promise<SeaLevelDataset> {
+  if (!seaLevelDatasetPromise) {
+    seaLevelDatasetPromise = fetch('/projections.csv', { cache: 'force-cache' })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Failed to load sea-level projections: ${response.status}`);
+        }
 
-// Linear rate extrapolated from the last two projected years in projections.csv.
-const EXTRAPOLATION_RATE_M_PER_YEAR = LAST_DATA_VALUE - PREVIOUS_DATA_VALUE;
+        return response.text();
+      })
+      .then((csvText) => buildSeaLevelDataset(parseProjectionRows(csvText)));
+  }
+
+  return seaLevelDatasetPromise;
+}
 
 /**
  * Returns projected sea level rise in meters using the high-end CSV values.
  * Years up to 2026 clamp to 0, then values interpolate within the CSV range
  * and extrapolate linearly beyond it.
  */
-export function getSeaLevel(year: number): number {
+export async function getSeaLevel(year: number): Promise<number> {
   if (year <= 2026) return 0;
-  if (year > LAST_DATA_YEAR) {
-    return LAST_DATA_VALUE + EXTRAPOLATION_RATE_M_PER_YEAR * (year - LAST_DATA_YEAR);
+
+  const { data, lastYear, extrapolationRate } = await loadSeaLevelDataset();
+  const lastValue = data[lastYear] ?? 0;
+
+  if (year > lastYear) {
+    return lastValue + extrapolationRate * (year - lastYear);
   }
 
   const lo = Math.floor(year);
   const hi = Math.ceil(year);
 
-  if (lo === hi) return SEA_LEVEL_DATA[lo] ?? 0;
+  if (lo === hi) return data[lo] ?? 0;
 
   const frac = year - lo;
-  return (SEA_LEVEL_DATA[lo] ?? 0) * (1 - frac) + (SEA_LEVEL_DATA[hi] ?? 0) * frac;
+  return (data[lo] ?? 0) * (1 - frac) + (data[hi] ?? 0) * frac;
 }
 
-export { SEA_LEVEL_DATA };
+export async function preloadSeaLevelData(): Promise<void> {
+  await loadSeaLevelDataset();
+}
