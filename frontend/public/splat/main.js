@@ -1,159 +1,235 @@
 let cameras = [
     {
         id: 0,
-        img_name: "00001",
-        width: 1959,
-        height: 1090,
+        img_name: "frame_0001",
+        width: 1280,
+        height: 720,
         position: [
-            -3.0089893469241797, -0.11086489695181866, -3.7527640949141428,
+            0.5930456712184022,
+            -0.8051669217895191,
+            0.0017492584443656494,
         ],
         rotation: [
-            [0.876134201218856, 0.06925962026449776, 0.47706599800804744],
-            [-0.04747421839895102, 0.9972110940209488, -0.057586739349882114],
-            [-0.4797239414934443, 0.027805376500959853, 0.8769787916452908],
+            [-0.7787243803571424, 0.14606165114280958, -0.6101264897566905],
+            [0.6273657391705114, 0.18013124557604318, -0.7576047542632379],
+            [-0.0007541567625194423, -0.9727377490529806, -0.2319066683278386],
         ],
-        fy: 1164.6601287484507,
-        fx: 1159.5880733038064,
+        fy: 943.2348532572976,
+        fx: 943.2348532572976,
     },
     {
         id: 1,
-        img_name: "00009",
-        width: 1959,
-        height: 1090,
+        img_name: "frame_0022",
+        width: 1280,
+        height: 720,
         position: [
-            -2.5199776022057296, -0.09704735754873686, -3.6247725540304545,
+            0.48874441939571,
+            -0.6343840067439563,
+            0.00016374442473850485,
         ],
         rotation: [
-            [0.9982731285632193, -0.011928707708098955, -0.05751927260507243],
-            [0.0065061360949636325, 0.9955928229282383, -0.09355533724430458],
-            [0.058381769258182864, 0.09301955098900708, 0.9939511719154457],
+            [-0.20806626750015197, 0.2321215038144377, -0.9501726347330148],
+            [0.97788205437968, 0.028177835352671335, -0.20725032525189035],
+            [-0.021333449105379307, -0.9722785696814271, -0.23285031004382722],
         ],
-        fy: 1164.6601287484507,
-        fx: 1159.5880733038064,
+        fy: 943.2348532572976,
+        fx: 943.2348532572976,
     },
     {
         id: 2,
-        img_name: "00017",
-        width: 1959,
-        height: 1090,
+        img_name: "frame_0042",
+        width: 1280,
+        height: 720,
         position: [
-            -0.7737533667465242, -0.3364271945329695, -2.9358969417573753,
+            0.45493430541302876,
+            -0.476504973418225,
+            -0.0019897549395029956,
         ],
         rotation: [
-            [0.9998813418672372, 0.013742375651625236, -0.0069605529394208224],
-            [-0.014268370388586709, 0.996512943252834, -0.08220929105659476],
-            [0.00580653013657589, 0.08229885200307129, 0.9965907801935302],
+            [-0.22235968311031926, 0.23112440442827353, -0.9471735221197615],
+            [0.9747059385931123, 0.03031718066673235, -0.22142538659273203],
+            [-0.0224611798086954, -0.9724517356836259, -0.23201964823588733],
         ],
-        fy: 1164.6601287484507,
-        fx: 1159.5880733038064,
+        fy: 943.2348532572976,
+        fx: 943.2348532572976,
     },
     {
         id: 3,
-        img_name: "00025",
-        width: 1959,
-        height: 1090,
+        img_name: "frame_0063",
+        width: 1280,
+        height: 720,
         position: [
-            1.2198221749590001, -0.2196687861401182, -2.3183162007028453,
+            0.39808378877801204,
+            -0.27191352505233946,
+            -0.005921399478173944,
         ],
         rotation: [
-            [0.9208648867765482, 0.0012010625395201253, 0.389880004297208],
-            [-0.06298204172269357, 0.987319521752825, 0.14571693239364383],
-            [-0.3847611242348369, -0.1587410451475895, 0.9092635249821667],
+            [-0.34133297353052394, 0.22170708443825438, -0.9134209160571589],
+            [0.9397975606515276, 0.06343687093756269, -0.33579206125084227],
+            [-0.016502914113847703, -0.9730476515132955, -0.23001287292282407],
         ],
-        fy: 1164.6601287484507,
-        fx: 1159.5880733038064,
+        fy: 943.2348532572976,
+        fx: 943.2348532572976,
     },
     {
         id: 4,
-        img_name: "00033",
-        width: 1959,
-        height: 1090,
+        img_name: "frame_0084",
+        width: 1280,
+        height: 720,
         position: [
-            1.742387858893817, -0.13848225198886954, -2.0566370113193146,
+            0.2601491284519126,
+            0.004674453432133534,
+            -0.008300304977639103,
         ],
         rotation: [
-            [0.24669889292141334, -0.08370189346592856, -0.9654706879349405],
-            [0.11343747891376445, 0.9919082664242816, -0.05700815184573074],
-            [0.9624300466054861, -0.09545671285663988, 0.2541976029815521],
+            [-0.5513050980488258, 0.19390200104052296, -0.8114583802376161],
+            [0.8342903132293835, 0.12261490721496346, -0.537517681365258],
+            [-0.004728860009745886, -0.9733281042491001, -0.22936878462829527],
         ],
-        fy: 1164.6601287484507,
-        fx: 1159.5880733038064,
+        fy: 943.2348532572976,
+        fx: 943.2348532572976,
     },
     {
         id: 5,
-        img_name: "00041",
-        width: 1959,
-        height: 1090,
+        img_name: "frame_0104",
+        width: 1280,
+        height: 720,
         position: [
-            3.6567309419223935, -0.16470990600750707, -1.3458085590422042,
+            0.04292685546405465,
+            0.23661999684616541,
+            -0.006991554078569295,
         ],
         rotation: [
-            [0.2341293058324528, -0.02968330457755884, -0.9717522161434825],
-            [0.10270823606832301, 0.99469554638321, -0.005638106875665722],
-            [0.9667649592295676, -0.09848690996657204, 0.2359360976431732],
+            [-0.7993328730765941, 0.1339674397921707, -0.5857641872756036],
+            [0.6008400927179123, 0.19056624534068753, -0.7763218978745114],
+            [0.007625024711303857, -0.9724902216538138, -0.23281887334550008],
         ],
-        fy: 1164.6601287484507,
-        fx: 1159.5880733038064,
+        fy: 943.2348532572976,
+        fx: 943.2348532572976,
     },
     {
         id: 6,
-        img_name: "00049",
-        width: 1959,
-        height: 1090,
+        img_name: "frame_0125",
+        width: 1280,
+        height: 720,
         position: [
-            3.9013554243203497, -0.2597500978038105, -0.8106154188297828,
+            -0.27105100574633795,
+            0.38712519467284734,
+            -0.0021896614337716166,
         ],
         rotation: [
-            [0.6717235545638952, -0.015718162115524837, -0.7406351366386528],
-            [0.055627354673906296, 0.9980224478387622, 0.029270992841185218],
-            [0.7387104058127439, -0.060861588786650656, 0.6712695459756353],
+            [-0.9545883602171641, 0.051289609751095686, -0.2934798774524173],
+            [0.2972734857032212, 0.22923307779574745, -0.9268660478958897],
+            [0.019736697691415863, -0.9720193269559351, -0.23407026891164232],
         ],
-        fy: 1164.6601287484507,
-        fx: 1159.5880733038064,
+        fy: 943.2348532572976,
+        fx: 943.2348532572976,
     },
     {
         id: 7,
-        img_name: "00057",
-        width: 1959,
-        height: 1090,
-        position: [4.742994605467533, -0.05591660945412069, 0.9500365976084458],
-        rotation: [
-            [-0.17042655709210375, 0.01207080756938, -0.9852964448542146],
-            [0.1165090336695526, 0.9931575292530063, -0.00798543433078162],
-            [0.9784581921120181, -0.1161568667478904, -0.1706667764862097],
+        img_name: "frame_0146",
+        width: 1280,
+        height: 720,
+        position: [
+            -0.5658786406234845,
+            0.45490474234160894,
+            0.0069758224188894505,
         ],
-        fy: 1164.6601287484507,
-        fx: 1159.5880733038064,
+        rotation: [
+            [-0.9888604271871942, 0.013292519172395666, -0.1482510184693889],
+            [0.147102713746201, 0.2392546779259565, -0.9597489206553191],
+            [0.022712268747591798, -0.9708658548041528, -0.23854484866317877],
+        ],
+        fy: 943.2348532572976,
+        fx: 943.2348532572976,
     },
     {
         id: 8,
-        img_name: "00065",
-        width: 1959,
-        height: 1090,
-        position: [4.34676307626522, 0.08168160516967145, 1.0876221470355405],
-        rotation: [
-            [-0.003575447631888379, -0.044792503246552894, -0.9989899137764799],
-            [0.10770152645126597, 0.9931680875192705, -0.04491693593046672],
-            [0.9941768441149182, -0.10775333677534978, 0.0012732004866391048],
+        img_name: "frame_0166",
+        width: 1280,
+        height: 720,
+        position: [
+            -0.6801469226139881,
+            0.4656893568062319,
+            0.009733800227655723,
         ],
-        fy: 1164.6601287484507,
-        fx: 1159.5880733038064,
+        rotation: [
+            [-0.995143601396971, 0.003606770553000604, -0.09836769695812024],
+            [0.09630989650209003, 0.24214969686477522, -0.9654470094956296],
+            [0.020337562155363552, -0.970232196700602, -0.24132108911386352],
+        ],
+        fy: 943.2348532572976,
+        fx: 943.2348532572976,
     },
     {
         id: 9,
-        img_name: "00073",
-        width: 1959,
-        height: 1090,
-        position: [3.264984351114202, 0.078974937336732, 1.0117200284114904],
-        rotation: [
-            [-0.026919994628162257, -0.1565891128261527, -0.9872968974090509],
-            [0.08444552208239385, 0.983768234577625, -0.1583319754069128],
-            [0.9960643893290491, -0.0876350978794554, -0.013259786205163005],
+        img_name: "frame_0187",
+        width: 1280,
+        height: 720,
+        position: [
+            -0.8055498677660645,
+            0.47422654206370174,
+            0.014128804428711363,
         ],
-        fy: 1164.6601287484507,
-        fx: 1159.5880733038064,
+        rotation: [
+            [-0.9981272094684497, -0.007124850055456199, -0.060756153848090036],
+            [0.057192529051205754, 0.24370474280453383, -0.9681616667454371],
+            [0.02170456955234327, -0.9698233008369428, -0.24284084667593345],
+        ],
+        fy: 943.2348532572976,
+        fx: 943.2348532572976,
     },
 ];
+
+// Orbit radius for zoom — scroll adjusts distance to focal point, not camera world position
+let orbitRadius = 4;
+const MIN_ORBIT_RADIUS = 0.05;
+const MAX_ORBIT_RADIUS = 15;
+
+// Trajectory rail — camera position is locked to a polyline through the training cameras
+const trajectoryPoints = cameras.map((c) => c.position);
+const trajArcLengths = [0];
+for (let i = 1; i < trajectoryPoints.length; i++) {
+    const p = trajectoryPoints[i],
+        q = trajectoryPoints[i - 1];
+    trajArcLengths.push(
+        trajArcLengths[i - 1] +
+            Math.sqrt(
+                (p[0] - q[0]) ** 2 +
+                    (p[1] - q[1]) ** 2 +
+                    (p[2] - q[2]) ** 2,
+            ),
+    );
+}
+const trajTotalLength = trajArcLengths[trajArcLengths.length - 1];
+let trajectoryT = 0.0;
+
+function getTrajectoryPosition(t) {
+    t = Math.max(0, Math.min(trajTotalLength, t));
+    for (let i = 1; i < trajArcLengths.length; i++) {
+        if (t <= trajArcLengths[i]) {
+            const alpha =
+                (t - trajArcLengths[i - 1]) /
+                (trajArcLengths[i] - trajArcLengths[i - 1]);
+            const A = trajectoryPoints[i - 1],
+                B = trajectoryPoints[i];
+            return [
+                A[0] + alpha * (B[0] - A[0]),
+                A[1] + alpha * (B[1] - A[1]),
+                A[2] + alpha * (B[2] - A[2]),
+            ];
+        }
+    }
+    return trajectoryPoints[trajectoryPoints.length - 1].slice();
+}
+
+function setPositionFromTrajectory(inv) {
+    const pos = getTrajectoryPosition(trajectoryT);
+    inv[12] = pos[0];
+    inv[13] = pos[1];
+    inv[14] = pos[2];
+    return inv;
+}
 
 let camera = cameras[0];
 
@@ -731,11 +807,8 @@ void main () {
 
 `.trim();
 
-let defaultViewMatrix = [
-    0.47, 0.04, 0.88, 0, -0.11, 0.99, 0.02, 0, -0.88, -0.11, 0.47, 0, 0.07,
-    0.03, 6.55, 1,
-];
-let viewMatrix = defaultViewMatrix;
+let defaultViewMatrix = getViewMatrix(cameras[0]);
+let viewMatrix = defaultViewMatrix.slice();
 async function main() {
     let carousel = false;
     const params = new URLSearchParams(location.search);
@@ -887,26 +960,23 @@ async function main() {
     const applyOrbitGesture = (dx, dy) => {
         carousel = false;
         let inv = invert4(viewMatrix);
-        let d = 4;
-        inv = translate4(inv, 0, 0, d);
+        inv = translate4(inv, 0, 0, orbitRadius);
         inv = rotate4(inv, dx, 0, 1, 0);
         inv = rotate4(inv, -dy, 1, 0, 0);
-        inv = translate4(inv, 0, 0, -d);
+        inv = translate4(inv, 0, 0, -orbitRadius);
         viewMatrix = invert4(inv);
     };
 
     const applyZoomGesture = (delta) => {
         carousel = false;
-        let inv = invert4(viewMatrix);
-        inv = translate4(inv, 0, 0, delta);
-        viewMatrix = invert4(inv);
+        orbitRadius = Math.max(
+            MIN_ORBIT_RADIUS,
+            Math.min(MAX_ORBIT_RADIUS, orbitRadius + delta),
+        );
     };
 
-    const applyPanGesture = (dx, dy) => {
-        carousel = false;
-        let inv = invert4(viewMatrix);
-        inv = translate4(inv, dx, -dy, 0);
-        viewMatrix = invert4(inv);
+    const applyPanGesture = (_dx, _dy) => {
+        // pan disabled — use arrow keys to traverse the trajectory
     };
 
     const applyRollGesture = (delta) => {
@@ -919,8 +989,10 @@ async function main() {
     const applyResetGesture = () => {
         carousel = false;
         currentCameraIndex = 0;
+        trajectoryT = trajArcLengths[currentCameraIndex];
         camera = cameras[currentCameraIndex];
-        viewMatrix = defaultViewMatrix;
+        defaultViewMatrix = getViewMatrix(camera);
+        viewMatrix = defaultViewMatrix.slice();
         camid.innerText = "cam  " + currentCameraIndex;
     };
 
@@ -1021,15 +1093,20 @@ async function main() {
             currentCameraIndex = parseInt(e.key);
             camera = cameras[currentCameraIndex];
             viewMatrix = getViewMatrix(camera);
+            trajectoryT = trajArcLengths[currentCameraIndex];
         }
         if (["-", "_"].includes(e.key)) {
             currentCameraIndex =
                 (currentCameraIndex + cameras.length - 1) % cameras.length;
-            viewMatrix = getViewMatrix(cameras[currentCameraIndex]);
+            camera = cameras[currentCameraIndex];
+            viewMatrix = getViewMatrix(camera);
+            trajectoryT = trajArcLengths[currentCameraIndex];
         }
         if (["+", "="].includes(e.key)) {
             currentCameraIndex = (currentCameraIndex + 1) % cameras.length;
-            viewMatrix = getViewMatrix(cameras[currentCameraIndex]);
+            camera = cameras[currentCameraIndex];
+            viewMatrix = getViewMatrix(camera);
+            trajectoryT = trajArcLengths[currentCameraIndex];
         }
         camid.innerText = "cam  " + currentCameraIndex;
         if (e.code == "KeyV") {
@@ -1063,34 +1140,14 @@ async function main() {
                     : e.deltaMode == 2
                       ? viewH
                       : 1;
-            let inv = invert4(viewMatrix);
-            if (e.shiftKey) {
-                inv = translate4(
-                    inv,
-                    (e.deltaX * scale) / viewW,
-                    (e.deltaY * scale) / viewH,
-                    0,
-                );
-            } else if (e.ctrlKey || e.metaKey) {
-                // inv = rotate4(inv,  (e.deltaX * scale) / viewW,  0, 0, 1);
-                // inv = translate4(inv,  0, (e.deltaY * scale) / viewH, 0);
-                // let preY = inv[13];
-                inv = translate4(
-                    inv,
-                    0,
-                    0,
-                    (-10 * (e.deltaY * scale)) / viewH,
-                );
-                // inv[13] = preY;
-            } else {
-                let d = 4;
-                inv = translate4(inv, 0, 0, d);
-                inv = rotate4(inv, -(e.deltaX * scale) / viewW, 0, 1, 0);
-                inv = rotate4(inv, (e.deltaY * scale) / viewH, 1, 0, 0);
-                inv = translate4(inv, 0, 0, -d);
-            }
-
-            viewMatrix = invert4(inv);
+            // Scroll zooms by adjusting orbit radius (moves toward/away from focal point)
+            orbitRadius = Math.max(
+                MIN_ORBIT_RADIUS,
+                Math.min(
+                    MAX_ORBIT_RADIUS,
+                    orbitRadius + (e.deltaY * scale) / viewH,
+                ),
+            );
         },
         { passive: false },
     );
@@ -1141,7 +1198,7 @@ async function main() {
                 (10 * (e.clientY - startY)) / viewH,
             );
             // inv[13] = preY;
-            viewMatrix = invert4(inv);
+            // pan disabled
 
             startX = e.clientX;
             startY = e.clientY;
@@ -1279,32 +1336,20 @@ async function main() {
             activeKeys.includes("ShiftLeft") ||
             activeKeys.includes("ShiftRight");
 
-        if (activeKeys.includes("ArrowUp")) {
-            if (shiftKey) {
-                inv = translate4(inv, 0, -0.03, 0);
-            } else {
-                inv = translate4(inv, 0, 0, 0.1);
-            }
+        // Arrow left/right traverse the trajectory; all other translation disabled
+        const TRAJ_STEP = 0.008;
+        if (activeKeys.includes("ArrowLeft")) {
+            trajectoryT = Math.max(0, trajectoryT - TRAJ_STEP);
+            setPositionFromTrajectory(inv);
+            carousel = false;
         }
-        if (activeKeys.includes("ArrowDown")) {
-            if (shiftKey) {
-                inv = translate4(inv, 0, 0.03, 0);
-            } else {
-                inv = translate4(inv, 0, 0, -0.1);
-            }
+        if (activeKeys.includes("ArrowRight")) {
+            trajectoryT = Math.min(trajTotalLength, trajectoryT + TRAJ_STEP);
+            setPositionFromTrajectory(inv);
+            carousel = false;
         }
-        if (activeKeys.includes("ArrowLeft"))
-            inv = translate4(inv, -0.03, 0, 0);
-        //
-        if (activeKeys.includes("ArrowRight"))
-            inv = translate4(inv, 0.03, 0, 0);
-        // inv = rotate4(inv, 0.01, 0, 1, 0);
-        if (activeKeys.includes("KeyA")) inv = translate4(inv, -0.05, 0, 0);
-        if (activeKeys.includes("KeyD")) inv = translate4(inv, 0.05, 0, 0);
         if (activeKeys.includes("KeyQ")) inv = rotate4(inv, 0.01, 0, 0, 1);
         if (activeKeys.includes("KeyE")) inv = rotate4(inv, -0.01, 0, 0, 1);
-        if (activeKeys.includes("KeyW")) inv = translate4(inv, 0, 0, 0.1);
-        if (activeKeys.includes("KeyS")) inv = translate4(inv, 0, 0, -0.1);
 
         const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
         let isJumping = activeKeys.includes("Space");
