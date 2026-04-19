@@ -1,40 +1,47 @@
 'use client';
 
-import type { PointerEventHandler } from 'react';
+import type { MouseEventHandler } from 'react';
 
 type VoiceAssistantBarProps = {
-  isRecording: boolean;
+  /** Mic is open: connecting or actively streaming to the speech service */
+  isLive: boolean;
+  /** Audio is being captured (show stop-style control) */
+  isCapturing: boolean;
   liveTranscript?: string;
   isSupported: boolean;
+  /** Transcript pipeline is finishing after mute */
+  isProcessing: boolean;
   isWorking: boolean;
   statusLabel: string;
-  onMicPointerDown: PointerEventHandler<HTMLButtonElement>;
-  onMicPointerUp: PointerEventHandler<HTMLButtonElement>;
-  onMicPointerCancel: PointerEventHandler<HTMLButtonElement>;
-  onMicLostPointerCapture: PointerEventHandler<HTMLButtonElement>;
+  onMicClick: MouseEventHandler<HTMLButtonElement>;
 };
 
 export default function VoiceAssistantBar({
-  isRecording,
+  isLive,
+  isCapturing,
   isSupported,
+  isProcessing,
   isWorking,
   statusLabel,
   liveTranscript,
-  onMicPointerDown,
-  onMicPointerUp,
-  onMicPointerCancel,
-  onMicLostPointerCapture,
+  onMicClick,
 }: VoiceAssistantBarProps) {
-  const micLabel = isRecording ? 'Release to send' : 'Hold to talk';
+  const micLabel = isProcessing
+    ? 'Processing…'
+    : isLive
+      ? 'Click to mute'
+      : 'Click to unmute';
+
+  const buttonDisabled = !isSupported || isProcessing;
 
   return (
     <div className="voice-assistant-bar">
-      {isRecording && liveTranscript ? (
+      {isCapturing && liveTranscript ? (
         <div className="voice-live-transcript">{liveTranscript}</div>
       ) : null}
       <div className="voice-assistant-row">
         <div className="voice-assistant-status">
-          <span className={`voice-dot ${isRecording ? 'voice-dot-live' : ''}`} />
+          <span className={`voice-dot ${isLive ? 'voice-dot-live' : ''}`} />
           <div className="voice-assistant-copy">
             <div className="voice-status-kicker">Voice Assistant</div>
             <div className="voice-status-label">{statusLabel}</div>
@@ -42,17 +49,14 @@ export default function VoiceAssistantBar({
         </div>
         <button
           type="button"
-          className={`voice-button voice-button-mic ${isRecording ? 'voice-button-live voice-button-mic-live' : ''}`}
+          className={`voice-button voice-button-mic ${isLive ? 'voice-button-live voice-button-mic-live' : ''}`}
           aria-busy={isWorking}
           aria-label={micLabel}
           title={micLabel}
-          disabled={!isSupported}
-          onPointerDown={onMicPointerDown}
-          onPointerUp={onMicPointerUp}
-          onPointerCancel={onMicPointerCancel}
-          onLostPointerCapture={onMicLostPointerCapture}
+          disabled={buttonDisabled}
+          onClick={onMicClick}
         >
-          {isRecording ? (
+          {isCapturing ? (
             <svg
               className="voice-button-mic-icon"
               viewBox="0 0 24 24"

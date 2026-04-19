@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import type { PointerEventHandler } from 'react';
+import { useRef, useState } from 'react';
+import type { MouseEventHandler } from 'react';
 
 import type { LocationRecord, ScenarioRecord, SceneHotspot } from '@/lib/locations';
 import {
@@ -22,6 +22,7 @@ import type { ViewerCommandApi, ViewerState } from '@/lib/viewer-types';
 import VoiceAssistantBar from '@/components/VoiceAssistantBar';
 import VoiceCaptionPanel from '@/components/VoiceCaptionPanel';
 import SplatViewer from '@/components/SplatViewer';
+import LocationResearchPanel from '@/components/LocationResearchPanel';
 import { useAssemblyAISpeechToText } from '@/hooks/useAssemblyAISpeechToText';
 import { useVoicePlayback } from '@/hooks/useVoicePlayback';
 
@@ -69,7 +70,7 @@ export default function LocationExperience({ location }: { location: LocationRec
   const [viewerState, setViewerState] = useState<ViewerState>('loading');
   const [commandLabel, setCommandLabel] = useState('Ready');
   const [response, setResponse] = useState(
-    'Use your voice to move around the scene, switch scenarios, and ask what the model is showing.',
+    'Click the voice button to unmute, say your command or question, then click again to mute. We will process it and respond here.',
   );
   const [aiError, setAiError] = useState<string | null>(null);
   const [activeHotspotId, setActiveHotspotId] = useState(normalizedLocation.defaultHotspotId);
@@ -103,8 +104,8 @@ export default function LocationExperience({ location }: { location: LocationRec
   const { speak, error: voicePlaybackError } = useVoicePlayback((event) => {
     appendVoiceLog(event.message, event.level ?? 'info');
   });
-  const stopMicRecordingRef = useRef<(() => Promise<void>) | null>(null);
   const stopInFlightRef = useRef(false);
+  const micStartInFlightRef = useRef(false);
 
   const activeHotspot =
     hotspots.find((hotspot) => hotspot.id === activeHotspotId) ?? hotspots[0];
@@ -309,62 +310,46 @@ export default function LocationExperience({ location }: { location: LocationRec
 
     stopInFlightRef.current = true;
     try {
-      appendVoiceLog('Mic released; finalizing AssemblyAI transcript.');
+      appendVoiceLog('Muted; finalizing transcript.');
       const nextTranscript = await speech.stopRecording();
       if (nextTranscript) {
         await runVoiceCommand(nextTranscript);
       } else {
         appendVoiceLog('AssemblyAI returned no final transcript.', 'error');
+        setResponse(
+          'No speech was recognized. Unmute, speak clearly, then mute when you are finished.',
+        );
       }
     } finally {
       stopInFlightRef.current = false;
     }
   };
 
-  useEffect(() => {
-    stopMicRecordingRef.current = stopMicRecording;
-  });
-
-  useEffect(() => {
-    const handleWindowBlur = () => {
-      void stopMicRecordingRef.current?.();
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState !== 'visible') {
-        void stopMicRecordingRef.current?.();
-      }
-    };
-
-    window.addEventListener('blur', handleWindowBlur);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      window.removeEventListener('blur', handleWindowBlur);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, []);
-
-  const handleMicPointerDown: PointerEventHandler<HTMLButtonElement> = async (event) => {
-    if (speech.state !== 'idle') {
+  const handleMicClick: MouseEventHandler<HTMLButtonElement> = async () => {
+    if (
+      speech.state === 'recording' ||
+      speech.state === 'connecting' ||
+      speech.state === 'stopping'
+    ) {
+      await stopMicRecording();
       return;
     }
 
-    event.currentTarget.setPointerCapture(event.pointerId);
-    appendVoiceLog('Mic pressed; starting AssemblyAI capture.');
-    await speech.startRecording();
-  };
+    if (speech.state !== 'idle' && speech.state !== 'error') {
+      return;
+    }
 
-  const handleMicPointerUp: PointerEventHandler<HTMLButtonElement> = async () => {
-    await stopMicRecording();
-  };
+    if (micStartInFlightRef.current) {
+      return;
+    }
 
-  const handleMicPointerCancel: PointerEventHandler<HTMLButtonElement> = async () => {
-    await stopMicRecording();
-  };
-
-  const handleMicLostPointerCapture: PointerEventHandler<HTMLButtonElement> = async () => {
-    await stopMicRecording();
+    micStartInFlightRef.current = true;
+    try {
+      appendVoiceLog('Unmuted; streaming to AssemblyAI.');
+      await speech.startRecording();
+    } finally {
+      micStartInFlightRef.current = false;
+    }
   };
 
   const currentScenario: ScenarioRecord =
@@ -386,16 +371,32 @@ export default function LocationExperience({ location }: { location: LocationRec
   return (
     <>
       <div className="viewport">
-        <div className="splat-stage">
-          <SplatViewer
-            ref={viewerRef}
-            floodProgress={floodProgress}
-            floodCalibration={normalizedLocation.floodCalibration}
-            hotspots={hotspots}
-            onViewerStateChange={setViewerState}
-            splatUrl={normalizedLocation.splatUrl}
-            renderer={normalizedLocation.renderer ?? 'auto'}
-          />
+        <div className="viewport-main-column">
+          <div className="viewport-theater-stack">
+            <div className="splat-stage">
+              <SplatViewer
+                ref={viewerRef}
+                floodProgress={floodProgress}
+                floodCalibration={normalizedLocation.floodCalibration}
+                floodOverlay={normalizedLocation.floodOverlay}
+                hotspots={hotspots}
+                onViewerStateChange={setViewerState}
+                splatUrl={normalizedLocation.splatUrl}
+                renderer={normalizedLocation.renderer ?? 'auto'}
+              />
+            </div>
+            <div className="research-panel-kicker viewport-flow-kicker">Orthogonal Flow 02</div>
+          </div>
+
+          <div className="viewport-below-window">
+            <LocationResearchPanel
+              locationName={normalizedLocation.name}
+              region={normalizedLocation.region}
+              locationDescription={normalizedLocation.description}
+              activeHotspot={activeHotspot.name}
+              activeScenario={`${currentScenario.label} (${currentScenario.year})`}
+            />
+          </div>
         </div>
 
         <div className="stats-panel">
@@ -472,15 +473,16 @@ export default function LocationExperience({ location }: { location: LocationRec
         </div>
 
         <VoiceAssistantBar
-          isRecording={speech.state === 'recording'}
+          isCapturing={speech.state === 'recording'}
+          isLive={
+            speech.state === 'recording' || speech.state === 'connecting'
+          }
+          isProcessing={speech.state === 'stopping'}
           isSupported={
             !missingAssemblyConfig && speech.audioSupport !== 'unsupported'
           }
           isWorking={speech.state === 'connecting' || speech.state === 'stopping'}
-          onMicLostPointerCapture={handleMicLostPointerCapture}
-          onMicPointerCancel={handleMicPointerCancel}
-          onMicPointerDown={handleMicPointerDown}
-          onMicPointerUp={handleMicPointerUp}
+          onMicClick={handleMicClick}
           liveTranscript={speech.transcript}
           statusLabel={
             missingAssemblyConfig
@@ -493,14 +495,14 @@ export default function LocationExperience({ location }: { location: LocationRec
                     speech.state !== 'stopping'
                   ? `${voicePlaybackError} (Set ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID in frontend/.env.local.)`
                   : speech.state === 'connecting'
-                    ? 'Connecting…'
+                    ? 'Unmuted — connecting…'
                     : speech.state === 'stopping'
-                      ? 'Processing what you said…'
+                      ? 'Processing — hang on…'
                       : speech.state === 'recording'
-                        ? 'Listening…'
+                        ? 'Listening — click to mute when you are done'
                         : speech.audioSupport === 'unsupported'
-                          ? 'Mic recording is not supported in this browser'
-                          : 'Hold the mic, speak, then release to send'
+                          ? 'Voice is not supported in this browser'
+                          : 'Muted — click to unmute and speak'
           }
         />
         <VoiceCaptionPanel
