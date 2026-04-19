@@ -1457,7 +1457,7 @@ async function main() {
             document.getElementById("spinner").style.display = "none";
             const baselineZ = (window.__debugWater?.baselineOverride != null)
                 ? window.__debugWater.baselineOverride
-                : isAnnaberg ? sceneYMin + 8 : sceneYMin + 1.47;
+                : isAnnaberg ? -0.25 : sceneYMin + 1.47;
             const waterY = baselineZ + waterLevelProgress * (sceneYMax - baselineZ);
             const waterVisible = waterLevelProgress > 0 || !isAnnaberg;
             gl.uniform1f(u_waterLevel, waterVisible ? waterY : -1e9);

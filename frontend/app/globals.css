@@ -247,29 +247,16 @@ body > div {
 
 /* ---- VIEWPORT ---- */
 .viewport {
-  position: relative;
-  display: flex;
-  align-items: flex-start;
-  justify-content: flex-start;
-  padding: 16px 20px 28px;
-  overflow: auto;
-  width: 100%;
-  height: 100%;
-  min-height: calc(100vh - 64px);
-  background: radial-gradient(ellipse at 50% 80%, #041830 0%, #020a12 100%);
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: #020a12;
 }
 
-/* Capped “theater” size: not full screen (lighter GPU load), fills most laptops */
 .splat-stage {
-  position: relative;
-  width: min(1260px, calc(100vw - 32px));
-  height: min(620px, calc(100vh - 64px - 100px));
-  flex-shrink: 0;
-  border: 1px solid var(--border-bright);
+  position: absolute;
+  inset: 0;
   background: #020a12;
-  box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.4),
-    0 28px 56px rgba(0, 0, 0, 0.45);
   contain: strict;
 }
 
@@ -613,12 +600,12 @@ body > div {
   }
 
   .viewport {
-    padding: 12px 12px 24px;
+    padding: 0;
   }
 
   .splat-stage {
-    width: 100%;
-    height: min(62vh, 520px);
+    position: absolute;
+    inset: 0;
   }
 
   .stats-panel,
