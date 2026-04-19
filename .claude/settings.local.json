@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__plugin_woz_code__Search",
+      "mcp__plugin_woz_code__Edit",
+      "Bash(python -c ' *)"
+    ]
+  }
+}
