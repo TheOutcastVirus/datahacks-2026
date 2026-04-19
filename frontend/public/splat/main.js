@@ -1,193 +1,18 @@
-let cameras = [
-    {
-        id: 0,
-        img_name: "frame_0001",
-        width: 1280,
-        height: 720,
-        position: [
-            0.5930456712184022,
-            -0.8051669217895191,
-            0.0017492584443656494,
-        ],
-        rotation: [
-            [-0.7787243803571424, 0.14606165114280958, -0.6101264897566905],
-            [0.6273657391705114, 0.18013124557604318, -0.7576047542632379],
-            [-0.0007541567625194423, -0.9727377490529806, -0.2319066683278386],
-        ],
-        fy: 943.2348532572976,
-        fx: 943.2348532572976,
-    },
-    {
-        id: 1,
-        img_name: "frame_0022",
-        width: 1280,
-        height: 720,
-        position: [
-            0.48874441939571,
-            -0.6343840067439563,
-            0.00016374442473850485,
-        ],
-        rotation: [
-            [-0.20806626750015197, 0.2321215038144377, -0.9501726347330148],
-            [0.97788205437968, 0.028177835352671335, -0.20725032525189035],
-            [-0.021333449105379307, -0.9722785696814271, -0.23285031004382722],
-        ],
-        fy: 943.2348532572976,
-        fx: 943.2348532572976,
-    },
-    {
-        id: 2,
-        img_name: "frame_0042",
-        width: 1280,
-        height: 720,
-        position: [
-            0.45493430541302876,
-            -0.476504973418225,
-            -0.0019897549395029956,
-        ],
-        rotation: [
-            [-0.22235968311031926, 0.23112440442827353, -0.9471735221197615],
-            [0.9747059385931123, 0.03031718066673235, -0.22142538659273203],
-            [-0.0224611798086954, -0.9724517356836259, -0.23201964823588733],
-        ],
-        fy: 943.2348532572976,
-        fx: 943.2348532572976,
-    },
-    {
-        id: 3,
-        img_name: "frame_0063",
-        width: 1280,
-        height: 720,
-        position: [
-            0.39808378877801204,
-            -0.27191352505233946,
-            -0.005921399478173944,
-        ],
-        rotation: [
-            [-0.34133297353052394, 0.22170708443825438, -0.9134209160571589],
-            [0.9397975606515276, 0.06343687093756269, -0.33579206125084227],
-            [-0.016502914113847703, -0.9730476515132955, -0.23001287292282407],
-        ],
-        fy: 943.2348532572976,
-        fx: 943.2348532572976,
-    },
-    {
-        id: 4,
-        img_name: "frame_0084",
-        width: 1280,
-        height: 720,
-        position: [
-            0.2601491284519126,
-            0.004674453432133534,
-            -0.008300304977639103,
-        ],
-        rotation: [
-            [-0.5513050980488258, 0.19390200104052296, -0.8114583802376161],
-            [0.8342903132293835, 0.12261490721496346, -0.537517681365258],
-            [-0.004728860009745886, -0.9733281042491001, -0.22936878462829527],
-        ],
-        fy: 943.2348532572976,
-        fx: 943.2348532572976,
-    },
-    {
-        id: 5,
-        img_name: "frame_0104",
-        width: 1280,
-        height: 720,
-        position: [
-            0.04292685546405465,
-            0.23661999684616541,
-            -0.006991554078569295,
-        ],
-        rotation: [
-            [-0.7993328730765941, 0.1339674397921707, -0.5857641872756036],
-            [0.6008400927179123, 0.19056624534068753, -0.7763218978745114],
-            [0.007625024711303857, -0.9724902216538138, -0.23281887334550008],
-        ],
-        fy: 943.2348532572976,
-        fx: 943.2348532572976,
-    },
-    {
-        id: 6,
-        img_name: "frame_0125",
-        width: 1280,
-        height: 720,
-        position: [
-            -0.27105100574633795,
-            0.38712519467284734,
-            -0.0021896614337716166,
-        ],
-        rotation: [
-            [-0.9545883602171641, 0.051289609751095686, -0.2934798774524173],
-            [0.2972734857032212, 0.22923307779574745, -0.9268660478958897],
-            [0.019736697691415863, -0.9720193269559351, -0.23407026891164232],
-        ],
-        fy: 943.2348532572976,
-        fx: 943.2348532572976,
-    },
-    {
-        id: 7,
-        img_name: "frame_0146",
-        width: 1280,
-        height: 720,
-        position: [
-            -0.5658786406234845,
-            0.45490474234160894,
-            0.0069758224188894505,
-        ],
-        rotation: [
-            [-0.9888604271871942, 0.013292519172395666, -0.1482510184693889],
-            [0.147102713746201, 0.2392546779259565, -0.9597489206553191],
-            [0.022712268747591798, -0.9708658548041528, -0.23854484866317877],
-        ],
-        fy: 943.2348532572976,
-        fx: 943.2348532572976,
-    },
-    {
-        id: 8,
-        img_name: "frame_0166",
-        width: 1280,
-        height: 720,
-        position: [
-            -0.6801469226139881,
-            0.4656893568062319,
-            0.009733800227655723,
-        ],
-        rotation: [
-            [-0.995143601396971, 0.003606770553000604, -0.09836769695812024],
-            [0.09630989650209003, 0.24214969686477522, -0.9654470094956296],
-            [0.020337562155363552, -0.970232196700602, -0.24132108911386352],
-        ],
-        fy: 943.2348532572976,
-        fx: 943.2348532572976,
-    },
-    {
-        id: 9,
-        img_name: "frame_0187",
-        width: 1280,
-        height: 720,
-        position: [
-            -0.8055498677660645,
-            0.47422654206370174,
-            0.014128804428711363,
-        ],
-        rotation: [
-            [-0.9981272094684497, -0.007124850055456199, -0.060756153848090036],
-            [0.057192529051205754, 0.24370474280453383, -0.9681616667454371],
-            [0.02170456955234327, -0.9698233008369428, -0.24284084667593345],
-        ],
-        fy: 943.2348532572976,
-        fx: 943.2348532572976,
-    },
-];
+import {
+    maineCameras,
+    maineTrajectoryPoints,
+    sampledTrajectoryIndices,
+} from "./maine-pose-data.js";
+
+let cameras = maineCameras;
 
 // Orbit radius for zoom — scroll adjusts distance to focal point, not camera world position
 let orbitRadius = 4;
 const MIN_ORBIT_RADIUS = 0.05;
 const MAX_ORBIT_RADIUS = 15;
 
-// Trajectory rail — camera position is locked to a polyline through the training cameras
-const trajectoryPoints = cameras.map((c) => c.position);
+// Trajectory rail — camera position is locked to the full training-camera path
+const trajectoryPoints = maineTrajectoryPoints;
 const trajArcLengths = [0];
 for (let i = 1; i < trajectoryPoints.length; i++) {
     const p = trajectoryPoints[i],
@@ -989,7 +814,7 @@ async function main() {
     const applyResetGesture = () => {
         carousel = false;
         currentCameraIndex = 0;
-        trajectoryT = trajArcLengths[currentCameraIndex];
+        trajectoryT = trajArcLengths[sampledTrajectoryIndices[currentCameraIndex]];
         camera = cameras[currentCameraIndex];
         defaultViewMatrix = getViewMatrix(camera);
         viewMatrix = defaultViewMatrix.slice();
@@ -1092,21 +917,21 @@ async function main() {
         if (/\d/.test(e.key)) {
             currentCameraIndex = parseInt(e.key);
             camera = cameras[currentCameraIndex];
+            trajectoryT = trajArcLengths[sampledTrajectoryIndices[currentCameraIndex]];
             viewMatrix = getViewMatrix(camera);
-            trajectoryT = trajArcLengths[currentCameraIndex];
         }
         if (["-", "_"].includes(e.key)) {
             currentCameraIndex =
                 (currentCameraIndex + cameras.length - 1) % cameras.length;
             camera = cameras[currentCameraIndex];
+            trajectoryT = trajArcLengths[sampledTrajectoryIndices[currentCameraIndex]];
             viewMatrix = getViewMatrix(camera);
-            trajectoryT = trajArcLengths[currentCameraIndex];
         }
         if (["+", "="].includes(e.key)) {
             currentCameraIndex = (currentCameraIndex + 1) % cameras.length;
             camera = cameras[currentCameraIndex];
+            trajectoryT = trajArcLengths[sampledTrajectoryIndices[currentCameraIndex]];
             viewMatrix = getViewMatrix(camera);
-            trajectoryT = trajArcLengths[currentCameraIndex];
         }
         camid.innerText = "cam  " + currentCameraIndex;
         if (e.code == "KeyV") {

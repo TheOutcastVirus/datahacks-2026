@@ -139,12 +139,12 @@ export const LOCATIONS: LocationRecord[] = [
     defaultHotspotId: 'waterfront',
   },
   {
-    slug: 'output-splat',
-    name: 'Output Splat',
+    slug: 'maine',
+    name: 'Maine',
     region: 'Local render capture',
     description:
       'Gaussian splat render from the latest output.ply export. Use this row to open the corrected splat renderer directly.',
-    splatUrl: '/output.ply',
+    splatUrl: '/maine_output.ply',
     renderer: 'splat',
     status: 'Render Ready',
     updatedAt: 'April 18, 2026',
