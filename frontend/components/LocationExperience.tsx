@@ -3,7 +3,6 @@
 import { useRef, useState } from 'react';
 
 import type { LocationRecord, ScenarioRecord } from '@/lib/locations';
-import { getSeaLevel } from '@/lib/sea-level-data';
 import {
   parseVoiceIntent,
 } from '@/lib/scene-command-catalog';
@@ -21,6 +20,7 @@ import type { ViewerCommandApi, ViewerState } from '@/lib/viewer-types';
 
 import VoiceAssistantBar from '@/components/VoiceAssistantBar';
 import SplatViewer from '@/components/SplatViewer';
+import SeaLevelTimeline from '@/components/SeaLevelTimeline';
 import { useAssemblyAISpeechToText } from '@/hooks/useAssemblyAISpeechToText';
 import { useVoicePlayback } from '@/hooks/useVoicePlayback';
 
@@ -78,7 +78,7 @@ export default function LocationExperience({ location }: { location: LocationRec
   >(null);
   const [sliderYear, setSliderYear] = useState(2026);
   const [riseMeters, setRiseMeters] = useState(normalizedLocation.scene.rise);
-  const [statsVisible, setStatsVisible] = useState(true);
+  const [timelineVisible, setTimelineVisible] = useState(true);
   const [voiceVisible, setVoiceVisible] = useState(true);
   const speech = useAssemblyAISpeechToText([
     'show 2050',
@@ -276,52 +276,23 @@ export default function LocationExperience({ location }: { location: LocationRec
           />
         </div>
 
-        <div className="right-panel-stack">
-          {statsVisible ? (
-            <div className="stats-panel">
-              <div className="stats-panel-header">
-                <div className="stats-label">Sea Level Rise</div>
-                <button type="button" className="panel-hide-btn" onClick={() => setStatsVisible(false)} aria-label="Hide panel">×</button>
-              </div>
-              <div className="stats-rise" style={{ color: currentScenario.color }}>
-                +{riseMeters.toFixed(2)}
-                <span className="stats-rise-unit">m</span>
-              </div>
-              <div className="stats-year">{sliderYear}</div>
-              <div className="stats-scenario">{scenarioLabel}</div>
-              <div className="stats-narration">{currentScenario.narration}</div>
-              <div className="stats-control">
-                <label className="stats-control-label" htmlFor="water-level-slider">
-                  Water Level
-                </label>
-                <div className="stats-slider-row">
-                  <input
-                    id="water-level-slider"
-                    className="stats-slider"
-                    type="range"
-                    min={2026}
-                    max={2100}
-                    step={1}
-                    value={sliderYear}
-                    onChange={(event) => {
-                      const year = Number.parseInt(event.currentTarget.value, 10);
-                      setSliderYear(year);
-                      setRiseMeters(getSeaLevel(year));
-                    }}
-                    aria-label="Year"
-                  />
-                  <div className="stats-slider-value">{Math.round(floodProgress * 100)}%</div>
-                </div>
-                <div className="stats-slider-scale">
-                  <span>2026</span>
-                  <span>2100</span>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <button type="button" className="panel-tab" onClick={() => setStatsVisible(true)}>Sea Level ▼</button>
-          )}
+        {timelineVisible ? (
+          <SeaLevelTimeline
+            sliderYear={sliderYear}
+            riseMeters={riseMeters}
+            onYearChange={(year, rise) => { setSliderYear(year); setRiseMeters(rise); }}
+            onHide={() => setTimelineVisible(false)}
+          />
+        ) : (
+          <button
+            type="button"
+            className="panel-tab"
+            style={{ position: 'absolute', bottom: 24, right: 16, zIndex: 30 }}
+            onClick={() => setTimelineVisible(true)}
+          >Sea Level ▲</button>
+        )}
 
+        <div className="right-panel-stack">
           {voiceVisible ? (
             <VoiceAssistantBar
               isRecording={speech.state === 'recording'}
