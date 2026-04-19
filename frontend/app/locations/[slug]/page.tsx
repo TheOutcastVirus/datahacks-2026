@@ -25,9 +25,9 @@ export default async function LocationPage({
       <header className="app-header">
         <div>
           <div className="logo">
-            SO<span className="logo-accent">JS</span>
+            SO<span className="logo-accent">GS</span>
           </div>
-          <div className="header-sub">Location Render</div>
+          <div className="header-sub">Spatiotemporal Oceanographic Growth Simulator</div>
         </div>
         <nav className="header-nav">
           <Link href="/" className="nav-link">

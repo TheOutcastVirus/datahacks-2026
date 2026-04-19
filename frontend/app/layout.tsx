@@ -21,8 +21,8 @@ const dmMono = DM_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Sojs — Location Dashboard",
-  description: "Sojs location dashboard for opening saved 3D renders by route",
+  title: "SOGS — Location Dashboard",
+  description: "Spatiotemporal Oceanographic Growth Simulator location dashboard for opening saved 3D renders by route",
 };
 
 export default function RootLayout({
