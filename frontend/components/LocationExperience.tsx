@@ -78,6 +78,8 @@ export default function LocationExperience({ location }: { location: LocationRec
   >(null);
   const [sliderYear, setSliderYear] = useState(2026);
   const [riseMeters, setRiseMeters] = useState(normalizedLocation.scene.rise);
+  const [statsVisible, setStatsVisible] = useState(true);
+  const [voiceVisible, setVoiceVisible] = useState(true);
   const speech = useAssemblyAISpeechToText([
     'show 2050',
     'show baseline',
@@ -274,42 +276,80 @@ export default function LocationExperience({ location }: { location: LocationRec
           />
         </div>
 
-        <div className="stats-panel">
-          <div className="stats-label">Sea Level Rise</div>
-          <div className="stats-rise" style={{ color: currentScenario.color }}>
-            +{riseMeters.toFixed(2)}
-            <span className="stats-rise-unit">m</span>
-          </div>
-          <div className="stats-year">{sliderYear}</div>
-          <div className="stats-scenario">{scenarioLabel}</div>
-          <div className="stats-narration">{currentScenario.narration}</div>
-          <div className="stats-control">
-            <label className="stats-control-label" htmlFor="water-level-slider">
-              Water Level
-            </label>
-            <div className="stats-slider-row">
-              <input
-                id="water-level-slider"
-                className="stats-slider"
-                type="range"
-                min={2026}
-                max={2100}
-                step={1}
-                value={sliderYear}
-                onChange={(event) => {
-                  const year = Number.parseInt(event.currentTarget.value, 10);
-                  setSliderYear(year);
-                  setRiseMeters(getSeaLevel(year));
-                }}
-                aria-label="Year"
-              />
-              <div className="stats-slider-value">{Math.round(floodProgress * 100)}%</div>
+        <div className="right-panel-stack">
+          {statsVisible ? (
+            <div className="stats-panel">
+              <div className="stats-panel-header">
+                <div className="stats-label">Sea Level Rise</div>
+                <button type="button" className="panel-hide-btn" onClick={() => setStatsVisible(false)} aria-label="Hide panel">×</button>
+              </div>
+              <div className="stats-rise" style={{ color: currentScenario.color }}>
+                +{riseMeters.toFixed(2)}
+                <span className="stats-rise-unit">m</span>
+              </div>
+              <div className="stats-year">{sliderYear}</div>
+              <div className="stats-scenario">{scenarioLabel}</div>
+              <div className="stats-narration">{currentScenario.narration}</div>
+              <div className="stats-control">
+                <label className="stats-control-label" htmlFor="water-level-slider">
+                  Water Level
+                </label>
+                <div className="stats-slider-row">
+                  <input
+                    id="water-level-slider"
+                    className="stats-slider"
+                    type="range"
+                    min={2026}
+                    max={2100}
+                    step={1}
+                    value={sliderYear}
+                    onChange={(event) => {
+                      const year = Number.parseInt(event.currentTarget.value, 10);
+                      setSliderYear(year);
+                      setRiseMeters(getSeaLevel(year));
+                    }}
+                    aria-label="Year"
+                  />
+                  <div className="stats-slider-value">{Math.round(floodProgress * 100)}%</div>
+                </div>
+                <div className="stats-slider-scale">
+                  <span>2026</span>
+                  <span>2100</span>
+                </div>
+              </div>
             </div>
-            <div className="stats-slider-scale">
-              <span>2026</span>
-              <span>2100</span>
-            </div>
-          </div>
+          ) : (
+            <button type="button" className="panel-tab" onClick={() => setStatsVisible(true)}>Sea Level ▼</button>
+          )}
+
+          {voiceVisible ? (
+            <VoiceAssistantBar
+              isRecording={speech.state === 'recording'}
+              isSpeaking={isVoicePlaying}
+              isSupported={speech.isSupported}
+              isWorking={speech.state === 'connecting' || speech.state === 'stopping'}
+              onMicClick={handleMicClick}
+              onToggleSpeaker={() => setSpeakerEnabled((current) => !current)}
+              onHide={() => setVoiceVisible(false)}
+              speakerEnabled={speakerEnabled}
+              statusLabel={
+                speech.error
+                  ? speech.error
+                  : speech.state === 'connecting'
+                    ? 'Connecting to AssemblyAI…'
+                    : speech.state === 'stopping'
+                      ? 'Finalizing AssemblyAI transcript…'
+                      : speech.state === 'recording'
+                        ? 'Listening via AssemblyAI…'
+                        : speech.isSupported
+                          ? 'Tap the mic to start or stop recording'
+                          : 'Mic recording is not supported in this browser'
+              }
+              transcript={speech.transcript}
+            />
+          ) : (
+            <button type="button" className="panel-tab" onClick={() => setVoiceVisible(true)}>Voice ▼</button>
+          )}
         </div>
 
         <div className="attr-panel">
@@ -326,30 +366,6 @@ export default function LocationExperience({ location }: { location: LocationRec
             </div>
           ))}
         </div>
-
-        <VoiceAssistantBar
-          isRecording={speech.state === 'recording'}
-          isSpeaking={isVoicePlaying}
-          isSupported={speech.isSupported}
-          isWorking={speech.state === 'connecting' || speech.state === 'stopping'}
-          onMicClick={handleMicClick}
-          onToggleSpeaker={() => setSpeakerEnabled((current) => !current)}
-          speakerEnabled={speakerEnabled}
-          statusLabel={
-            speech.error
-              ? speech.error
-              : speech.state === 'connecting'
-                ? 'Connecting to AssemblyAI…'
-                : speech.state === 'stopping'
-                  ? 'Finalizing AssemblyAI transcript…'
-                  : speech.state === 'recording'
-                    ? 'Listening via AssemblyAI…'
-                    : speech.isSupported
-                      ? 'Tap the mic to start or stop recording'
-                      : 'Mic recording is not supported in this browser'
-          }
-          transcript={speech.transcript}
-        />
 
       </div>
     </>

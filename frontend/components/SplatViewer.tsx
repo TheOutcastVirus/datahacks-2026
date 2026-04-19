@@ -307,11 +307,11 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
   const [rotY, setRotY] = useState(0.640);
   const [rotZ, setRotZ] = useState(0.030);
   const [camElev, setCamElev] = useState(0.238);
-  const [camDist, setCamDist] = useState(1.350);
+  const [camDist, setCamDist] = useState(0.359);
   const [showSetup, setShowSetup] = useState(false);
   const [camPos, setCamPos] = useState<{ x: number; y: number; z: number } | null>(null);
   const camElevRef = useRef(0.238);
-  const camDistRef = useRef(1.350);
+  const camDistRef = useRef(0.359);
   const gestureStateRef = useRef<GestureState>({
     smoothedCenter: null,
     smoothedPinch: null,
@@ -1339,10 +1339,27 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
     };
   }, [handControlEnabled, usePlyRenderer, viewerState]);
 
+  const zoomFromIframe = useRef(false);
+  const zoomInitialized = useRef(false);
+
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (e.data?.type === 'splat-camera-pos') {
         setCamPos({ x: e.data.x, y: e.data.y, z: e.data.z });
+      }
+      if (e.data?.type === 'splat-zoom') {
+        if (!zoomInitialized.current) {
+          // First ping from iframe — push our desired initial zoom back
+          zoomInitialized.current = true;
+          iframeRef.current?.contentWindow?.postMessage(
+            { type: 'splat-set-zoom', value: camDistRef.current },
+            '*',
+          );
+        } else {
+          zoomFromIframe.current = true;
+          setCamDist(e.data.value);
+          zoomFromIframe.current = false;
+        }
       }
     };
     window.addEventListener('message', handler);
@@ -1381,7 +1398,7 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
     }
   }, [rotX, rotY, rotZ, usePlyRenderer]);
 
-  const prevCamRef = useRef({ elev: 0.238, dist: 1.350 });
+  const prevCamRef = useRef({ elev: 0.238, dist: 0.359 });
 
   useEffect(() => {
     if (usePlyRenderer) {
@@ -1390,17 +1407,17 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
       fitCameraRef.current?.();
     } else {
       const dElev = camElev - prevCamRef.current.elev;
-      const dDist = camDist - prevCamRef.current.dist;
       prevCamRef.current = { elev: camElev, dist: camDist };
       if (Math.abs(dElev) > 0.001) {
         sendSplatGesture(iframeRef.current?.contentWindow, {
           type: 'splat-hand-control', action: 'orbit', dx: 0, dy: -dElev * 0.8,
         });
       }
-      if (Math.abs(dDist) > 0.001) {
-        sendSplatGesture(iframeRef.current?.contentWindow, {
-          type: 'splat-hand-control', action: 'zoom', delta: dDist * 0.4,
-        });
+      if (!zoomFromIframe.current) {
+        iframeRef.current?.contentWindow?.postMessage(
+          { type: 'splat-set-zoom', value: camDist },
+          '*',
+        );
       }
     }
   }, [camElev, camDist, usePlyRenderer]);
@@ -1667,7 +1684,7 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
               ['Rot Y', rotY, setRotY, -Math.PI, Math.PI],
               ['Rot Z', rotZ, setRotZ, -Math.PI, Math.PI],
               ['Cam Elev', camElev, setCamElev, -1, 1.5],
-              ['Cam Dist', camDist, setCamDist, 0.5, 3],
+              ['Cam Dist', camDist, setCamDist, -1.5, 3],
             ] as const).map(([label, value, setter, min, max]) => (
               <label key={label} style={{ display: 'grid', gap: 4 }}>
                 <span
@@ -1703,7 +1720,7 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
                 setRotY(-0.122);
                 setRotZ(0.320);
                 setCamElev(0.238);
-                setCamDist(1.350);
+                setCamDist(0.359);
               }}
               style={{
                 marginTop: 4,

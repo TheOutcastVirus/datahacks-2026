@@ -1014,6 +1014,10 @@ async function main() {
             waterLevelProgress = Math.max(0, Math.min(1, data.value));
             return;
         }
+        if (data && data.type === "splat-set-zoom") {
+            zoomOffset = data.value;
+            return;
+        }
         if (!data || data.type !== "splat-hand-control") return;
 
         if (data.action === "orbit") {
@@ -1519,6 +1523,7 @@ async function main() {
 
         const viewProj = multiply4(projectionMatrix, actualViewMatrix);
         worker.postMessage({ view: viewProj });
+        parent.postMessage({ type: 'splat-zoom', value: zoomOffset }, '*');
 
         const currentFps = 1000 / (now - lastFrame) || 0;
         avgFps = avgFps * 0.9 + currentFps * 0.1;

@@ -10,6 +10,7 @@ type VoiceAssistantBarProps = {
   transcript: string;
   onMicClick: () => void;
   onToggleSpeaker: () => void;
+  onHide: () => void;
 };
 
 export default function VoiceAssistantBar({
@@ -22,6 +23,7 @@ export default function VoiceAssistantBar({
   transcript,
   onMicClick,
   onToggleSpeaker,
+  onHide,
 }: VoiceAssistantBarProps) {
   return (
     <div className="voice-assistant-bar">
@@ -31,6 +33,7 @@ export default function VoiceAssistantBar({
           <div className="voice-status-kicker">Voice Assistant</div>
           <div className="voice-status-label">{statusLabel}</div>
         </div>
+        <button type="button" className="panel-hide-btn" onClick={onHide} aria-label="Hide panel">×</button>
       </div>
 
       <div className="voice-assistant-actions">
