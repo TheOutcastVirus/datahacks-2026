@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 
 import type { LocationRecord, ScenarioRecord } from '@/lib/locations';
+import { getSeaLevel } from '@/lib/sea-level-data';
 import {
   parseVoiceIntent,
 } from '@/lib/scene-command-catalog';
@@ -75,6 +76,7 @@ export default function LocationExperience({ location }: { location: LocationRec
   const [compareScenarioIds, setCompareScenarioIds] = useState<
     [string, string] | null
   >(null);
+  const [sliderYear, setSliderYear] = useState(2026);
   const [riseMeters, setRiseMeters] = useState(normalizedLocation.scene.rise);
   const speech = useAssemblyAISpeechToText([
     'show 2050',
@@ -162,6 +164,7 @@ export default function LocationExperience({ location }: { location: LocationRec
         viewerRef.current?.setScenario(scenario.id);
         setCompareScenarioIds(null);
         setActiveScenarioId(scenario.id);
+        setSliderYear(scenario.year);
         setRiseMeters(scenario.riseMeters);
         const nextResponse = buildScenarioResponse(
           normalizedLocation,
@@ -181,6 +184,7 @@ export default function LocationExperience({ location }: { location: LocationRec
         viewerRef.current?.compareScenario(left.id, right.id);
         setCompareScenarioIds([left.id, right.id]);
         setActiveScenarioId(right.id);
+        setSliderYear(right.year);
         setRiseMeters(right.riseMeters);
         const nextResponse = buildCompareResponse(normalizedLocation, left, right);
         setResponse(nextResponse.caption);
@@ -255,6 +259,140 @@ export default function LocationExperience({ location }: { location: LocationRec
     ? `${compareScenarios[0].label} vs ${compareScenarios[1].label}`
     : currentScenario.label;
   const floodProgress = clamp(riseMeters / MAX_VISUALIZED_RISE_METERS, 0, 1);
+  const voiceStatusLabel = missingAssemblyConfig
+    ? 'Set ASSEMBLYAI_API_KEY to enable voice input'
+    : speech.error
+      ? speech.error
+      : voicePlaybackError &&
+          speech.state !== 'recording' &&
+          speech.state !== 'connecting' &&
+          speech.state !== 'stopping'
+        ? `${voicePlaybackError} (Set ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID in frontend/.env.local.)`
+        : speech.state === 'connecting'
+          ? 'Unmuted — connecting…'
+          : speech.state === 'stopping'
+            ? 'Processing — hang on…'
+            : speech.state === 'recording'
+              ? 'Listening — click to mute when you are done'
+              : speech.audioSupport === 'unsupported'
+                ? 'Voice is not supported in this browser'
+                : 'Muted — click to unmute and speak';
+
+  const viewerStage = (
+    <div className={isOutputSplat ? 'splat-stage output-splat-stage' : 'splat-stage'}>
+      <SplatViewer
+        ref={viewerRef}
+        floodProgress={floodProgress}
+        floodCalibration={normalizedLocation.floodCalibration}
+        floodOverlay={normalizedLocation.floodOverlay}
+        hotspots={hotspots}
+        onViewerStateChange={setViewerState}
+        splatUrl={normalizedLocation.splatUrl}
+        renderer={normalizedLocation.renderer ?? 'auto'}
+      />
+    </div>
+  );
+
+  const statsPanel = (
+    <div className={isOutputSplat ? 'stats-panel output-splat-card' : 'stats-panel'}>
+      <div className="stats-label">Sea Level Rise</div>
+      <div className="stats-rise" style={{ color: currentScenario.color }}>
+        +{riseMeters.toFixed(2)}
+        <span className="stats-rise-unit">m</span>
+      </div>
+      <div className="stats-meta">
+        <span className="stats-year">{sliderYear}</span>
+        <span className="stats-meta-sep" aria-hidden={true}>
+          ·
+        </span>
+        <span className="stats-scenario">{scenarioLabel}</span>
+      </div>
+      <div className="stats-narration">{currentScenario.narration}</div>
+      <div className="stats-control">
+        <label className="stats-control-label" htmlFor="water-level-slider">
+          Water Level
+        </label>
+        <div className="stats-slider-row">
+          <input
+            id="water-level-slider"
+            className="stats-slider"
+            type="range"
+            min={2026}
+            max={2100}
+            step={1}
+            value={sliderYear}
+            onChange={(event) => {
+              const year = Number.parseInt(event.currentTarget.value, 10);
+              setSliderYear(year);
+              setRiseMeters(getSeaLevel(year));
+            }}
+            aria-label="Year"
+          />
+          <div className="stats-slider-value">{Math.round(floodProgress * 100)}%</div>
+        </div>
+        <div className="stats-slider-scale">
+          <span>2026</span>
+          <span>2100</span>
+        </div>
+      </div>
+    </div>
+  );
+
+  const attrPanel = (
+    <div
+      className={
+        isOutputSplat
+          ? 'attr-panel attr-panel-splat-output output-splat-card'
+          : 'attr-panel'
+      }
+    >
+      <div className="attr-title">Location</div>
+      <div className="attr-item attr-item-strong">{normalizedLocation.name}</div>
+      {normalizedLocation.description.trim() ? (
+        <div className="attr-item">{normalizedLocation.description}</div>
+      ) : null}
+      {isOutputSplat ? (
+        <div className="attr-hotspot-inline">
+          <span className="attr-hotspot-label">View</span>
+          <span className="attr-item-strong">{activeHotspot.name}</span>
+        </div>
+      ) : (
+        <>
+          <div className="attr-title attr-title-spaced">Active Hotspot</div>
+          <div className="attr-item attr-item-strong">{activeHotspot.name}</div>
+          <div className="attr-item">{activeHotspot.description}</div>
+        </>
+      )}
+      <div className="attr-title attr-title-spaced">Data Sources</div>
+      {normalizedLocation.sources.map((source) => (
+        <div key={source} className="attr-item">
+          {source}
+        </div>
+      ))}
+    </div>
+  );
+
+  const voiceAssistantBar = (
+    <VoiceAssistantBar
+      isCapturing={speech.state === 'recording'}
+      isLive={speech.state === 'recording' || speech.state === 'connecting'}
+      isProcessing={speech.state === 'stopping'}
+      isSupported={!missingAssemblyConfig && speech.audioSupport !== 'unsupported'}
+      isWorking={speech.state === 'connecting' || speech.state === 'stopping'}
+      onMicClick={handleMicClick}
+      liveTranscript={speech.transcript}
+      statusLabel={voiceStatusLabel}
+    />
+  );
+
+  const voiceCaptionPanel = (
+    <VoiceCaptionPanel
+      commandLabel={commandLabel}
+      response={response}
+      transcript={speech.transcript}
+      error={speech.error ?? voicePlaybackError ?? aiError}
+    />
+  );
 
   return (
     <>
@@ -276,7 +414,7 @@ export default function LocationExperience({ location }: { location: LocationRec
             +{riseMeters.toFixed(2)}
             <span className="stats-rise-unit">m</span>
           </div>
-          <div className="stats-year">{currentScenario.year}</div>
+          <div className="stats-year">{sliderYear}</div>
           <div className="stats-scenario">{scenarioLabel}</div>
           <div className="stats-narration">{currentScenario.narration}</div>
           <div className="stats-control">
@@ -288,20 +426,22 @@ export default function LocationExperience({ location }: { location: LocationRec
                 id="water-level-slider"
                 className="stats-slider"
                 type="range"
-                min={0}
-                max={MAX_VISUALIZED_RISE_METERS}
-                step={0.01}
-                value={riseMeters}
+                min={2026}
+                max={2100}
+                step={1}
+                value={sliderYear}
                 onChange={(event) => {
-                  setRiseMeters(Number.parseFloat(event.currentTarget.value));
+                  const year = Number.parseInt(event.currentTarget.value, 10);
+                  setSliderYear(year);
+                  setRiseMeters(getSeaLevel(year));
                 }}
-                aria-label="Water level"
+                aria-label="Year"
               />
               <div className="stats-slider-value">{Math.round(floodProgress * 100)}%</div>
             </div>
             <div className="stats-slider-scale">
-              <span>Dry</span>
-              <span>Flooded</span>
+              <span>2026</span>
+              <span>2100</span>
             </div>
           </div>
         </div>
