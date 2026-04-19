@@ -499,10 +499,13 @@ body > div {
   opacity: 1;
 }
 
-.voice-assistant-bar,
 .voice-caption-panel {
   position: absolute;
   z-index: 12;
+}
+
+.voice-assistant-bar,
+.voice-caption-panel {
   border: 1px solid rgba(0, 212, 180, 0.18);
   background: rgba(2, 11, 20, 0.88);
   backdrop-filter: blur(16px);
@@ -510,9 +513,9 @@ body > div {
 
 .voice-assistant-bar {
   display: grid;
-  gap: 16px;
-  width: min(420px, calc(100vw - 56px));
-  padding: 18px 18px 16px;
+  gap: 12px;
+  width: 220px;
+  padding: 14px 14px 12px;
 }
 
 .voice-assistant-status,
@@ -649,21 +652,8 @@ body > div {
     inset: 0;
   }
 
-  .stats-panel,
-  .attr-panel,
-  .voice-assistant-bar,
-  .voice-caption-panel {
-    position: static;
-    margin-top: 14px;
-  }
-
   .attr-panel {
     padding-left: 12px;
-  }
-
-  .voice-assistant-bar,
-  .voice-caption-panel {
-    width: 100%;
   }
 
   .voice-assistant-actions {
