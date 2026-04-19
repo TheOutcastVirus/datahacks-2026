@@ -7,7 +7,7 @@ export default function Home() {
     <div className="dashboard-shell">
       <header className="masthead">
         <div>
-          <div className="eyebrow">Sojs</div>
+          <div className="eyebrow">Spatiotemporal Oceanographic Growth Simulator</div>
           <h1 className="dashboard-title">Location Dashboard</h1>
           <p className="dashboard-copy">
             Launch scene demos and turn each Sojs view into a research-ready stakeholder brief.

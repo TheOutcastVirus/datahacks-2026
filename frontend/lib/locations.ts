@@ -201,6 +201,78 @@ export const LOCATIONS: LocationRecord[] = [
     defaultHotspotId: 'waterfront',
   },
   {
+    slug: 'maine',
+    name: 'Maine',
+    region: 'Local render capture',
+    description:
+      'Gaussian splat render from the latest output.ply export. Use this row to open the corrected splat renderer directly.',
+    splatUrl: '/maine_output.ply',
+    renderer: 'splat',
+    floodCalibration: {
+      startY: -1.5,
+      endY: 0.8,
+    },
+    status: 'Render Ready',
+    updatedAt: 'April 18, 2026',
+    scene: {
+      year: 2026,
+      rise: 0,
+      label: 'Output',
+      color: '#7dd3fc',
+    },
+    sources: ['output.ply export', 'Gaussian splat renderer'],
+    hotspots: [
+      {
+        id: 'render-center',
+        name: 'SLAM output',
+        aliases: [
+          'maine output',
+          'maine',
+          'slam output',
+          'slam',
+          'render center',
+          'output',
+          'splat',
+          'scene',
+        ],
+        description: 'Latest fused point cloud / splat from the Maine SLAM pipeline.',
+        cameraPose: {
+          position: [-3.5, 2, 5.5],
+          target: [0, 0.4, 0],
+        },
+        explainText: 'Showing the Maine Gaussian splat reconstruction.',
+      },
+    ],
+    scenarios: [
+      {
+        id: 'baseline',
+        label: 'Baseline',
+        year: 2026,
+        riseMeters: 0,
+        narration: 'Baseline render capture from the Maine export with no added sea-level rise.',
+        color: '#7dd3fc',
+      },
+      {
+        id: 'mid-century',
+        label: '2050 Outlook',
+        year: 2050,
+        riseMeters: 0.15,
+        narration: 'Mid-century rise preview for the Maine splat render.',
+        color: '#38bdf8',
+      },
+      {
+        id: 'worst-case',
+        label: '2100 Projection',
+        year: 2100,
+        riseMeters: 0.35,
+        narration:
+          'End-of-century projection based on observed tidal trends extrapolated from NOAA station data.',
+        color: '#f97316',
+      },
+    ],
+    defaultHotspotId: 'render-center',
+  },
+  {
     slug: 'output-splat',
     name: 'Output Splat',
     region: '',

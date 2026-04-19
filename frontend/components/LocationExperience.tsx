@@ -22,10 +22,11 @@ import VoiceAssistantBar from '@/components/VoiceAssistantBar';
 import VoiceCaptionPanel from '@/components/VoiceCaptionPanel';
 import SplatViewer from '@/components/SplatViewer';
 import LocationResearchPanel from '@/components/LocationResearchPanel';
+import SeaLevelTimeline from '@/components/SeaLevelTimeline';
 import { useAssemblyAISpeechToText } from '@/hooks/useAssemblyAISpeechToText';
 import { useVoicePlayback } from '@/hooks/useVoicePlayback';
 
-const MAX_VISUALIZED_RISE_METERS = 2.0;
+const MAX_VISUALIZED_RISE_METERS = 26.0;
 
 function describeIntent(intent: string) {
   return intent
@@ -77,6 +78,8 @@ export default function LocationExperience({ location }: { location: LocationRec
   const [compareScenarioIds, setCompareScenarioIds] = useState<
     [string, string] | null
   >(null);
+  const [sliderYear, setSliderYear] = useState(2026);
+  const [timelineVisible, setTimelineVisible] = useState(true);
   const [riseMeters, setRiseMeters] = useState(normalizedLocation.scene.rise);
   const speech = useAssemblyAISpeechToText([
     'show 2050',
@@ -132,6 +135,7 @@ export default function LocationExperience({ location }: { location: LocationRec
           viewerRef.current?.setScenario(scenario.id);
           setCompareScenarioIds(null);
           setActiveScenarioId(scenario.id);
+          setSliderYear(scenario.year);
           setRiseMeters(scenario.riseMeters);
           break;
         }
@@ -144,6 +148,7 @@ export default function LocationExperience({ location }: { location: LocationRec
           viewerRef.current?.compareScenario(left.id, right.id);
           setCompareScenarioIds([left.id, right.id]);
           setActiveScenarioId(right.id);
+          setSliderYear(right.year);
           setRiseMeters(right.riseMeters);
           break;
         }
@@ -295,6 +300,7 @@ export default function LocationExperience({ location }: { location: LocationRec
         viewerRef.current?.setScenario(scenario.id);
         setCompareScenarioIds(null);
         setActiveScenarioId(scenario.id);
+        setSliderYear(scenario.year);
         setRiseMeters(scenario.riseMeters);
         const nextResponse = buildScenarioResponse(
           normalizedLocation,
@@ -314,6 +320,7 @@ export default function LocationExperience({ location }: { location: LocationRec
         viewerRef.current?.compareScenario(left.id, right.id);
         setCompareScenarioIds([left.id, right.id]);
         setActiveScenarioId(right.id);
+        setSliderYear(right.year);
         setRiseMeters(right.riseMeters);
         const nextResponse = buildCompareResponse(normalizedLocation, left, right);
         setResponse(nextResponse.caption);
@@ -528,6 +535,26 @@ export default function LocationExperience({ location }: { location: LocationRec
           <span>Dry</span>
           <span>Flooded</span>
         </div>
+        {timelineVisible ? (
+          <SeaLevelTimeline
+            sliderYear={sliderYear}
+            riseMeters={riseMeters}
+            onYearChange={(year, rise) => {
+              setSliderYear(year);
+              setRiseMeters(rise);
+            }}
+            onHide={() => setTimelineVisible(false)}
+          />
+        ) : (
+          <button
+            type="button"
+            className="panel-tab"
+            style={{ position: 'absolute', bottom: 24, right: 16, zIndex: 30 }}
+            onClick={() => setTimelineVisible(true)}
+          >
+            Sea Level ▲
+          </button>
+        )}
       </div>
     </div>
   );
