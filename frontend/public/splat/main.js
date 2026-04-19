@@ -718,6 +718,7 @@ async function main() {
     // Dynamically load pose data based on which PLY is being viewed
     const urlParam = params.get("url") || "";
     const isAnnaberg = urlParam.toLowerCase().includes("annaberg");
+    const isUK = urlParam.toLowerCase().includes("uk_output");
     if (isAnnaberg) {
         const mod = await import("./annaberg-pose-data.js");
         // Pose data is in raw COLMAP space; apply the same gsplat normalize_world_space
@@ -739,6 +740,18 @@ async function main() {
             rotation: normRot(cam.rotation),
         }));
         trajectoryPoints = mod.annabergTrajectoryPoints.map(normPos);
+        sampledTrajectoryIndices = mod.sampledTrajectoryIndices;
+    } else if (isUK) {
+        const mod = await import("./uk-pose-data.js");
+        // COLMAP OpenCV (Y-down, Z-forward) → viewer OpenGL (Y-up, Z-backward): negate Y and Z
+        const flipYZ_pos = (p) => [p[0], -p[1], -p[2]];
+        const flipYZ_rot = (r) => r.map(row => [row[0], -row[1], -row[2]]);
+        cameras = mod.ukCameras.map(cam => ({
+            ...cam,
+            position: flipYZ_pos(cam.position),
+            rotation: flipYZ_rot(cam.rotation),
+        }));
+        trajectoryPoints = mod.ukTrajectoryPoints.map(flipYZ_pos);
         sampledTrajectoryIndices = mod.sampledTrajectoryIndices;
     } else {
         const mod = await import("./maine-pose-data.js");
@@ -976,7 +989,7 @@ async function main() {
         viewMatrix = invert4(inv);
     };
 
-    const defaultXyzOffset = isAnnaberg ? [0, 0, 8] : [0, 0, 0];
+    const defaultXyzOffset = isAnnaberg ? [0, 0, 8] : isUK ? [0, 0, 0] : [0, 0, 0];
     xyzOffset = defaultXyzOffset.slice();
     const initZoom = parseFloat(params.get("zoom") || "0");
     if (!isNaN(initZoom)) zoomOffset = initZoom;
@@ -1535,7 +1548,7 @@ async function main() {
             document.getElementById("spinner").style.display = "none";
             const baselineZ = (window.__debugWater?.baselineOverride != null)
                 ? window.__debugWater.baselineOverride
-                : isAnnaberg ? -0.25 : sceneYMin + 1.53;
+                : isAnnaberg ? -0.25 : isUK ? sceneYMin + 0.5 : sceneYMin + 1.53;
             const waterY = baselineZ + waterLevelProgress * (sceneYMax - baselineZ);
             const waterVisible = waterLevelProgress > 0;
             gl.uniform1f(u_waterLevel, waterVisible ? waterY : -1e9);

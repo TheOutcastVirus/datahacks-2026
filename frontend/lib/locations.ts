@@ -254,6 +254,64 @@ export const LOCATIONS: LocationRecord[] = [
     ],
     defaultHotspotId: 'render-center',
   },
+  {
+    slug: 'uk-coastline',
+    name: 'UK Coastline',
+    region: 'United Kingdom',
+    description:
+      'Aerial drone capture of the UK coastline. Gaussian splat render from photogrammetry output.',
+    splatUrl: '/uk_output.ply',
+    renderer: 'splat',
+    status: 'Render Ready',
+    updatedAt: 'April 19, 2026',
+    scene: {
+      year: 2026,
+      rise: 0,
+      label: 'Baseline',
+      color: '#60a5fa',
+    },
+    sources: ['Aerial drone footage', 'Gaussian splat renderer'],
+    hotspots: [
+      {
+        id: 'render-center',
+        name: 'Coastline View',
+        aliases: ['render center', 'coastline', 'coast', 'cliff', 'scene'],
+        description: 'Aerial view of the UK coastline captured by drone.',
+        cameraPose: {
+          position: [0, 0, 1.5],
+          target: [0, 0, 0],
+        },
+        explainText: 'Showing the UK coastline from the aerial Gaussian splat render.',
+      },
+    ],
+    scenarios: [
+      {
+        id: 'baseline',
+        label: 'Baseline',
+        year: 2026,
+        riseMeters: 0,
+        narration: 'Baseline aerial capture of the UK coastline with no added sea-level rise.',
+        color: '#60a5fa',
+      },
+      {
+        id: 'mid-century',
+        label: '2050 Outlook',
+        year: 2050,
+        riseMeters: 0.85,
+        narration: 'Mid-century sea level rise begins to affect low-lying coastal areas.',
+        color: '#38bdf8',
+      },
+      {
+        id: 'worst-case',
+        label: '2100 Projection',
+        year: 2100,
+        riseMeters: 2.0,
+        narration: 'End-of-century projection showing significant coastal inundation risk.',
+        color: '#f97316',
+      },
+    ],
+    defaultHotspotId: 'render-center',
+  },
 ];
 
 export function getLocationBySlug(slug: string) {
