@@ -11,7 +11,11 @@ import {
 import type { Camera, Vector3 } from 'three';
 import type { OrbitControls as OrbitControlsType } from 'three/examples/jsm/controls/OrbitControls.js';
 
-import type { FloodCalibration, SceneHotspot } from '@/lib/locations';
+import type {
+  FloodCalibration,
+  FloodOverlay,
+  SceneHotspot,
+} from '@/lib/locations';
 import type { CameraPose, ViewerCommandApi, ViewerState } from '@/lib/viewer-types';
 type SplatGestureMessage =
   | { type: 'splat-hand-control'; action: 'orbit'; dx: number; dy: number }
@@ -87,6 +91,12 @@ type FloodShader = {
     uFloodColor: { value: import('three').Color };
     uTime: { value: number };
   };
+};
+type FloodOverlayController = {
+  root: import('three').Group;
+  rebuild: (rx: number, ry: number, rz: number) => void;
+  update: (progress: number, calibration: FloodCalibration, timeSeconds: number) => void;
+  dispose: () => void;
 };
 
 const HAND_LANDMARKER_MODEL_URL =
@@ -204,30 +214,251 @@ function lerp(start: number, end: number, amount: number) {
   return start + (end - start) * amount;
 }
 
+function getWorldYCoefficients(rx: number, ry: number, rz: number) {
+  const cx = Math.cos(rx);
+  const sx = Math.sin(rx);
+  const cy = Math.cos(ry);
+  const sy = Math.sin(ry);
+  const cz = Math.cos(rz);
+  const sz = Math.sin(rz);
+
+  return {
+    m10: cy * sz,
+    m11: cx * cz + sx * sy * sz,
+    m12: cx * sy * sz - cz * sx,
+  };
+}
+
+function getWorldYFromLocal(
+  x: number,
+  y: number,
+  z: number,
+  coefficients: ReturnType<typeof getWorldYCoefficients>,
+) {
+  return coefficients.m10 * x + coefficients.m11 * y + coefficients.m12 * z;
+}
+
 function computeWorldYBounds(
   localBox: { min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } },
   rx: number,
   ry: number,
   rz: number,
 ): FloodCalibration {
-  // Euler XYZ: R = Rz * Ry * Rx — extract row 1 (world Y) coefficients
-  const cx = Math.cos(rx), sx = Math.sin(rx);
-  const cy = Math.cos(ry), sy = Math.sin(ry);
-  const cz = Math.cos(rz), sz = Math.sin(rz);
-  const m10 = cy * sz;
-  const m11 = cx * cz + sx * sy * sz;
-  const m12 = cx * sy * sz - cz * sx;
+  const coefficients = getWorldYCoefficients(rx, ry, rz);
   const { min, max } = localBox;
   const xs = [min.x, max.x];
   const ys = [min.y, max.y];
   const zs = [min.z, max.z];
-  let minY = Infinity, maxY = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
   for (const x of xs) for (const y of ys) for (const z of zs) {
-    const wy = m10 * x + m11 * y + m12 * z;
+    const wy = getWorldYFromLocal(x, y, z, coefficients);
     if (wy < minY) minY = wy;
     if (wy > maxY) maxY = wy;
   }
   return { startY: minY, endY: maxY };
+}
+
+function solveHorizontalPlaneLocalY(
+  x: number,
+  z: number,
+  rx: number,
+  ry: number,
+  rz: number,
+  targetWorldY = 0,
+) {
+  const coefficients = getWorldYCoefficients(rx, ry, rz);
+  if (Math.abs(coefficients.m11) < 1e-5) {
+    return 0;
+  }
+  return (targetWorldY - coefficients.m10 * x - coefficients.m12 * z) / coefficients.m11;
+}
+
+function createFloodOverlayController(
+  THREE: typeof import('three'),
+  scene: import('three').Scene,
+  localBox: { min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } },
+  overlay: FloodOverlay,
+  initialRotation: { x: number; y: number; z: number },
+): FloodOverlayController {
+  const root = new THREE.Group();
+  root.name = 'FloodOverlayRoot';
+  scene.add(root);
+
+  const sizeX = Math.max(localBox.max.x - localBox.min.x, 0.001);
+  const sizeZ = Math.max(localBox.max.z - localBox.min.z, 0.001);
+
+  const regionEntries = overlay.regions.map((region) => {
+    const proxyMaterial = new THREE.MeshBasicMaterial({
+      color: '#0a2530',
+      transparent: true,
+      opacity: 0,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const surfaceMaterial = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      uniforms: {
+        uTime: { value: 0 },
+        uOpacity: { value: 0 },
+        uBaseColor: { value: new THREE.Color('#0b7ca2') },
+        uHighlightColor: { value: new THREE.Color('#88ecff') },
+      },
+      vertexShader: `
+        uniform float uTime;
+        varying vec3 vWorldPosition;
+        varying float vWave;
+
+        void main() {
+          vec3 transformed = position;
+          float waveA = sin(position.x * 3.4 + uTime * 1.3);
+          float waveB = cos(position.z * 4.1 - uTime * 1.1);
+          float waveC = sin((position.x + position.z) * 2.8 + uTime * 0.9);
+          vWave = (waveA + waveB * 0.7 + waveC * 0.45) * 0.018;
+          transformed.y += vWave;
+
+          vec4 worldPosition = modelMatrix * vec4(transformed, 1.0);
+          vWorldPosition = worldPosition.xyz;
+          gl_Position = projectionMatrix * viewMatrix * worldPosition;
+        }
+      `,
+      fragmentShader: `
+        uniform float uTime;
+        uniform float uOpacity;
+        uniform vec3 uBaseColor;
+        uniform vec3 uHighlightColor;
+        varying vec3 vWorldPosition;
+        varying float vWave;
+
+        void main() {
+          vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
+          float fresnel = pow(1.0 - max(dot(viewDirection, vec3(0.0, 1.0, 0.0)), 0.0), 2.8);
+          float shimmer = 0.5 + 0.5 * sin((vWorldPosition.x + vWorldPosition.z) * 6.0 - uTime * 1.7);
+          vec3 color = mix(uBaseColor, uHighlightColor, clamp(fresnel * 0.9 + shimmer * 0.18, 0.0, 1.0));
+          float alpha = uOpacity * (0.62 + fresnel * 0.28 + abs(vWave) * 9.0);
+          gl_FragColor = vec4(color, alpha);
+        }
+      `,
+    });
+    const edgeMaterial = new THREE.LineBasicMaterial({
+      color: '#d4fbff',
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const proxyMesh = new THREE.Mesh(new THREE.BufferGeometry(), proxyMaterial);
+    const surfaceMesh = new THREE.Mesh(new THREE.BufferGeometry(), surfaceMaterial);
+    const edgeLoop = new THREE.LineLoop(new THREE.BufferGeometry(), edgeMaterial);
+    proxyMesh.renderOrder = 1;
+    surfaceMesh.renderOrder = 2;
+    edgeLoop.renderOrder = 3;
+    root.add(proxyMesh, surfaceMesh, edgeLoop);
+
+    return {
+      region,
+      proxyMesh,
+      surfaceMesh,
+      edgeLoop,
+      proxyMaterial,
+      surfaceMaterial,
+      edgeMaterial,
+    };
+  });
+
+  const rebuild = (rx: number, ry: number, rz: number) => {
+    root.rotation.set(rx, ry, rz);
+
+    for (const entry of regionEntries) {
+      entry.proxyMesh.geometry.dispose();
+      entry.surfaceMesh.geometry.dispose();
+      entry.edgeLoop.geometry.dispose();
+
+      const shapePoints = entry.region.polygon.map((point) => {
+        const localX = localBox.min.x + point.x * sizeX;
+        const localZ = localBox.min.z + point.z * sizeZ;
+        return new THREE.Vector2(localX, localZ);
+      });
+
+      const shape = new THREE.Shape(shapePoints);
+      const flatGeometry = new THREE.ShapeGeometry(shape);
+      const surfaceGeometry = flatGeometry.clone();
+      const shapedPosition = surfaceGeometry.getAttribute(
+        'position',
+      ) as import('three').BufferAttribute;
+
+      for (let index = 0; index < shapedPosition.count; index += 1) {
+        const localX = shapedPosition.getX(index);
+        const localZ = shapedPosition.getY(index);
+        const localY = solveHorizontalPlaneLocalY(localX, localZ, rx, ry, rz);
+        shapedPosition.setXYZ(index, localX, localY, localZ);
+      }
+
+      shapedPosition.needsUpdate = true;
+      surfaceGeometry.computeVertexNormals();
+
+      const proxyGeometry = surfaceGeometry.clone();
+      proxyGeometry.translate(0, -0.03, 0);
+
+      const outlinePositions = new Float32Array(shapePoints.length * 3);
+      shapePoints.forEach((shapePoint, index) => {
+        const localY = solveHorizontalPlaneLocalY(shapePoint.x, shapePoint.y, rx, ry, rz);
+        outlinePositions[index * 3] = shapePoint.x;
+        outlinePositions[index * 3 + 1] = localY + 0.01;
+        outlinePositions[index * 3 + 2] = shapePoint.y;
+      });
+      const edgeGeometry = new THREE.BufferGeometry();
+      edgeGeometry.setAttribute(
+        'position',
+        new THREE.BufferAttribute(outlinePositions, 3),
+      );
+
+      entry.proxyMesh.geometry = proxyGeometry;
+      entry.surfaceMesh.geometry = surfaceGeometry;
+      entry.edgeLoop.geometry = edgeGeometry;
+      flatGeometry.dispose();
+    }
+  };
+
+  rebuild(initialRotation.x, initialRotation.y, initialRotation.z);
+
+  return {
+    root,
+    rebuild,
+    update(progress, calibration, timeSeconds) {
+      root.position.y = lerp(calibration.startY, calibration.endY, progress);
+
+      for (const entry of regionEntries) {
+        const start = entry.region.minProgress ?? 0;
+        const end = entry.region.maxProgress ?? 1;
+        const visibility = clamp(
+          (progress - start) / Math.max(end - start, 0.001),
+          0,
+          1,
+        );
+        entry.proxyMaterial.opacity = visibility * 0.14;
+        entry.surfaceMaterial.uniforms.uTime.value = timeSeconds;
+        entry.surfaceMaterial.uniforms.uOpacity.value = visibility * 0.74;
+        entry.edgeMaterial.opacity = visibility * 0.7;
+        entry.proxyMesh.visible = visibility > 0.001;
+        entry.surfaceMesh.visible = visibility > 0.001;
+        entry.edgeLoop.visible = visibility > 0.001;
+      }
+    },
+    dispose() {
+      scene.remove(root);
+      for (const entry of regionEntries) {
+        entry.proxyMesh.geometry.dispose();
+        entry.surfaceMesh.geometry.dispose();
+        entry.edgeLoop.geometry.dispose();
+        entry.proxyMaterial.dispose();
+        entry.surfaceMaterial.dispose();
+        entry.edgeMaterial.dispose();
+      }
+    },
+  };
 }
 
 function postSplatFlood(
@@ -298,6 +529,7 @@ type SplatViewerProps = {
   renderer?: 'auto' | 'ply' | 'splat';
   floodProgress?: number;
   floodCalibration?: FloodCalibration;
+  floodOverlay?: FloodOverlay;
   hotspots?: SceneHotspot[];
   onViewerStateChange?: (state: ViewerState) => void;
 };
@@ -308,6 +540,7 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
     renderer = 'auto',
     floodProgress = 0,
     floodCalibration: propFloodCalibration,
+    floodOverlay,
     hotspots = [],
     onViewerStateChange,
   },
@@ -320,6 +553,7 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
   const controlsRef = useRef<OrbitControlsType | null>(null);
   const resetCameraRef = useRef<CameraSnapshot | null>(null);
   const floodShaderRef = useRef<FloodShader | null>(null);
+  const floodOverlayRef = useRef<FloodOverlayController | null>(null);
   const floodCalibrationRef = useRef<FloodCalibration | null>(null);
   const localBBoxRef = useRef<{ min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } } | null>(null);
   const floodProgressRef = useRef(clamp(floodProgress, 0, 1));
@@ -392,12 +626,20 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
 
     // Handle PLY renderer flood update
     const floodShader = floodShaderRef.current;
+    const floodOverlayController = floodOverlayRef.current;
     const floodCalibration = floodCalibrationRef.current;
     if (floodShader && floodCalibration) {
       floodShader.uniforms.uFloodLevelY.value = lerp(
         floodCalibration.startY,
         floodCalibration.endY,
         clampedFloodProgress,
+      );
+    }
+    if (floodOverlayController && floodCalibration) {
+      floodOverlayController.update(
+        clampedFloodProgress,
+        floodCalibration,
+        performance.now() / 1000,
       );
     }
 
@@ -495,6 +737,7 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
     if (!canvasHost) return;
 
     floodShaderRef.current = null;
+    floodOverlayRef.current = null;
     floodCalibrationRef.current = null;
 
     let isDisposed = false;
@@ -608,9 +851,9 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
         });
         pointsMaterial.onBeforeCompile = shader => {
           shader.uniforms.uFloodLevelY = { value: initialFloodLevelY };
-          shader.uniforms.uFloodBandWidth = { value: 0.018 };
-          shader.uniforms.uFloodEdgeSoftness = { value: 0.012 };
-          shader.uniforms.uFloodTintStrength = { value: 0.58 };
+          shader.uniforms.uFloodBandWidth = { value: 0.024 };
+          shader.uniforms.uFloodEdgeSoftness = { value: 0.02 };
+          shader.uniforms.uFloodTintStrength = { value: 0.16 };
           shader.uniforms.uFloodColor = { value: new THREE.Color('#167d96') };
           shader.uniforms.uTime = { value: performance.now() / 1000 };
 
@@ -661,8 +904,25 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
         materialToDispose = pointsMaterial;
 
         const points = new THREE.Points(loadedGeometry, pointsMaterial);
+        points.rotation.set(currentRotX, currentRotY, currentRotZ);
         pointsRef.current = points;
         scene.add(points);
+
+        if (floodOverlay?.regions.length) {
+          const floodOverlayController = createFloodOverlayController(
+            THREE,
+            scene,
+            localBox,
+            floodOverlay,
+            rotRef.current,
+          );
+          floodOverlayController.update(
+            floodProgressRef.current,
+            floodCalibration,
+            performance.now() / 1000,
+          );
+          floodOverlayRef.current = floodOverlayController;
+        }
 
         const readPose = (): CameraPose => ({
           position: [camera.position.x, camera.position.y, camera.position.z],
@@ -822,6 +1082,7 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
           }
 
           const floodShader = floodShaderRef.current;
+          const floodOverlayController = floodOverlayRef.current;
           const activeFloodCalibration = floodCalibrationRef.current;
           if (floodShader && activeFloodCalibration) {
             floodShader.uniforms.uTime.value = performance.now() / 1000;
@@ -829,6 +1090,13 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
               activeFloodCalibration.startY,
               activeFloodCalibration.endY,
               floodProgressRef.current,
+            );
+          }
+          if (floodOverlayController && activeFloodCalibration) {
+            floodOverlayController.update(
+              floodProgressRef.current,
+              activeFloodCalibration,
+              performance.now() / 1000,
             );
           }
 
@@ -880,6 +1148,8 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
       controlsRef.current = null;
       resetCameraRef.current = null;
       floodShaderRef.current = null;
+      floodOverlayRef.current?.dispose();
+      floodOverlayRef.current = null;
       floodCalibrationRef.current = null;
       geometryToDispose?.dispose();
       materialToDispose?.dispose();
@@ -887,7 +1157,7 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
       actionApiRef.current = noopViewerApi;
       canvasHost.replaceChildren();
     };
-  }, [hotspotMap, splatUrl, usePlyRenderer]);
+  }, [floodOverlay, hotspotMap, splatUrl, usePlyRenderer]);
 
   useEffect(() => {
     if (!handControlEnabled || viewerState !== 'ready') return;
@@ -1409,6 +1679,7 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
         const lb = localBBoxRef.current;
         if (lb) floodCalibrationRef.current = computeWorldYBounds(lb, rotX, rotY, rotZ);
       }
+      floodOverlayRef.current?.rebuild(rotX, rotY, rotZ);
     } else if (initialRotApplied.current) {
       applySplatRotation(rotX, rotY, rotZ);
     }
