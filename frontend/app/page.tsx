@@ -8,7 +8,7 @@ export default function Home() {
       <header className="masthead">
         <div>
           <div className="eyebrow">Spatiotemporal Oceanographic Growth Simulator</div>
-          <h1 className="dashboard-title">Location Dashboard</h1>
+          <h1 className="dashboard-title">Location  Dashboard</h1>
         </div>
    
       </header>
