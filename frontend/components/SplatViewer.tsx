@@ -193,6 +193,32 @@ function lerp(start: number, end: number, amount: number) {
   return start + (end - start) * amount;
 }
 
+function computeWorldYBounds(
+  localBox: { min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } },
+  rx: number,
+  ry: number,
+  rz: number,
+): FloodCalibration {
+  // Euler XYZ: R = Rz * Ry * Rx — extract row 1 (world Y) coefficients
+  const cx = Math.cos(rx), sx = Math.sin(rx);
+  const cy = Math.cos(ry), sy = Math.sin(ry);
+  const cz = Math.cos(rz), sz = Math.sin(rz);
+  const m10 = cy * sz;
+  const m11 = cx * cz + sx * sy * sz;
+  const m12 = cx * sy * sz - cz * sx;
+  const { min, max } = localBox;
+  const xs = [min.x, max.x];
+  const ys = [min.y, max.y];
+  const zs = [min.z, max.z];
+  let minY = Infinity, maxY = -Infinity;
+  for (const x of xs) for (const y of ys) for (const z of zs) {
+    const wy = m10 * x + m11 * y + m12 * z;
+    if (wy < minY) minY = wy;
+    if (wy > maxY) maxY = wy;
+  }
+  return { startY: minY, endY: maxY };
+}
+
 function resolveFloodCalibration(
   splatUrl: string,
   boundingBox: import('three').Box3 | null | undefined,
@@ -272,6 +298,7 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
   const resetCameraRef = useRef<CameraSnapshot | null>(null);
   const floodShaderRef = useRef<FloodShader | null>(null);
   const floodCalibrationRef = useRef<FloodCalibration | null>(null);
+  const localBBoxRef = useRef<{ min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } } | null>(null);
   const floodProgressRef = useRef(clamp(floodProgress, 0, 1));
   const pointsRef = useRef<import('three').Points | null>(null);
   const fitCameraRef = useRef<(() => void) | null>(null);
@@ -508,10 +535,12 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
         loadedGeometry.computeBoundingBox();
         loadedGeometry.computeBoundingSphere();
         geometryToDispose = loadedGeometry;
-        const floodCalibration = resolveFloodCalibration(
-          splatUrl,
-          loadedGeometry.boundingBox,
-        );
+        const rawBox = loadedGeometry.boundingBox;
+        const localBox = rawBox
+          ? { min: { x: rawBox.min.x, y: rawBox.min.y, z: rawBox.min.z }, max: { x: rawBox.max.x, y: rawBox.max.y, z: rawBox.max.z } }
+          : { min: { x: 0, y: 0, z: 0 }, max: { x: 1, y: 1, z: 1 } };
+        localBBoxRef.current = localBox;
+        const floodCalibration = computeWorldYBounds(localBox, rotX, rotY, rotZ);
         floodCalibrationRef.current = floodCalibration;
         const initialFloodLevelY = lerp(
           floodCalibration.startY,
@@ -549,7 +578,7 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
           ${shader.vertexShader}`.replace(
             '#include <begin_vertex>',
             `#include <begin_vertex>
-            vPointY = position.y;`,
+            vPointY = (modelMatrix * vec4(position, 1.0)).y;`,
           );
 
           shader.fragmentShader = `
@@ -1334,7 +1363,11 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
 
   useEffect(() => {
     if (usePlyRenderer) {
-      if (pointsRef.current) pointsRef.current.rotation.set(rotX, rotY, rotZ);
+      if (pointsRef.current) {
+        pointsRef.current.rotation.set(rotX, rotY, rotZ);
+        const lb = localBBoxRef.current;
+        if (lb) floodCalibrationRef.current = computeWorldYBounds(lb, rotX, rotY, rotZ);
+      }
     } else if (initialRotApplied.current) {
       applySplatRotation(rotX, rotY, rotZ);
     }

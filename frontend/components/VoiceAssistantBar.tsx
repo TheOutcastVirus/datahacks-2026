@@ -8,8 +8,7 @@ type VoiceAssistantBarProps = {
   speakerEnabled: boolean;
   statusLabel: string;
   transcript: string;
-  onPressStart: () => void;
-  onPressEnd: () => void;
+  onMicClick: () => void;
   onToggleSpeaker: () => void;
 };
 
@@ -21,8 +20,7 @@ export default function VoiceAssistantBar({
   speakerEnabled,
   statusLabel,
   transcript,
-  onPressStart,
-  onPressEnd,
+  onMicClick,
   onToggleSpeaker,
 }: VoiceAssistantBarProps) {
   return (
@@ -39,12 +37,11 @@ export default function VoiceAssistantBar({
         <button
           type="button"
           className={`voice-button ${isRecording ? 'voice-button-live' : ''}`}
-          disabled={!isSupported || isWorking}
-          onPointerDown={onPressStart}
-          onPointerUp={onPressEnd}
-          onPointerCancel={onPressEnd}
+          aria-busy={isWorking}
+          disabled={!isSupported}
+          onClick={onMicClick}
         >
-          {isRecording ? 'Release To Send' : 'Hold To Talk'}
+          {isRecording ? 'Stop Mic' : 'Start Mic'}
         </button>
         <button
           type="button"
@@ -56,7 +53,9 @@ export default function VoiceAssistantBar({
       </div>
 
       <div className="voice-transcript">
-        {transcript ? `Heard: “${transcript}”` : 'Try “show 2050”, “zoom out”, or “go to the waterfront”.'}
+        {transcript
+          ? `Heard: “${transcript}”`
+          : 'Tap the mic and say “show 2050”, “zoom out”, or “go to the waterfront”.'}
       </div>
     </div>
   );

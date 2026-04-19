@@ -155,6 +155,46 @@ export const LOCATIONS: LocationRecord[] = [
       color: '#7dd3fc',
     },
     sources: ['output.ply export', 'Gaussian splat renderer'],
+    hotspots: [
+      {
+        id: 'render-center',
+        name: 'Render Center',
+        aliases: ['render center', 'output', 'splat', 'scene'],
+        description: 'The center view for the latest output.ply export.',
+        cameraPose: {
+          position: [-3.5, 2, 5.5],
+          target: [0, 0.4, 0],
+        },
+        explainText: 'Showing the render center for the latest output.ply export.',
+      },
+    ],
+    scenarios: [
+      {
+        id: 'baseline',
+        label: 'Baseline',
+        year: 2026,
+        riseMeters: 0,
+        narration: 'Baseline render capture from output.ply with no added sea-level rise.',
+        color: '#7dd3fc',
+      },
+      {
+        id: 'mid-century',
+        label: '2050 Outlook',
+        year: 2050,
+        riseMeters: 0.74,
+        narration: 'Mid-century rise preview for the output.ply render.',
+        color: '#38bdf8',
+      },
+      {
+        id: 'worst-case',
+        label: '2100 Worst Case',
+        year: 2100,
+        riseMeters: 1.92,
+        narration: 'Highest-rise preview for the output.ply render.',
+        color: '#f97316',
+      },
+    ],
+    defaultHotspotId: 'render-center',
   },
 ];
 

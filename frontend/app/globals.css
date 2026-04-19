@@ -289,29 +289,32 @@ body > div {
 /* ---- STATS PANEL ---- */
 .stats-panel {
   position: absolute;
-  top: 28px;
-  right: 28px;
-  z-index: 10;
-  background: rgba(3, 12, 22, 0.88);
-  border: 1px solid var(--border);
+  top: 16px;
+  right: 16px;
+  z-index: 30;
+  background: rgba(2, 8, 16, 0.97);
+  border: 1px solid rgba(0, 212, 180, 0.45);
   border-radius: 0;
-  padding: 24px 28px;
-  min-width: 180px;
+  padding: 14px 16px;
+  min-width: 160px;
+  max-width: 200px;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.6), 0 8px 24px rgba(0,0,0,0.55);
+  backdrop-filter: blur(12px);
 }
 
 .stats-label {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 9px;
   letter-spacing: 0.2em;
   color: var(--text-lo);
   text-transform: uppercase;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .stats-rise {
   font-family: var(--font-display);
   font-weight: 300;
-  font-size: 56px;
+  font-size: 38px;
   line-height: 1;
   letter-spacing: -0.02em;
   transition: color 0.8s ease;
@@ -319,43 +322,43 @@ body > div {
 
 .stats-rise-unit {
   font-family: var(--font-body);
-  font-size: 20px;
+  font-size: 15px;
   font-weight: 400;
   opacity: 0.5;
-  margin-left: 3px;
+  margin-left: 2px;
 }
 
 .stats-year {
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: 15px;
+  font-size: 12px;
   color: var(--text-hi);
-  margin-top: 16px;
+  margin-top: 8px;
   letter-spacing: 0.06em;
 }
 
 .stats-scenario {
   font-family: var(--font-body);
-  font-size: 13px;
+  font-size: 11px;
   color: var(--text-lo);
   margin-top: 2px;
-  max-width: 260px;
+  max-width: 200px;
 }
 
 .stats-control {
-  margin-top: 18px;
-  padding-top: 16px;
-  border-top: 1px solid rgba(0, 212, 180, 0.14);
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(0, 212, 180, 0.18);
 }
 
 .stats-control-label {
   display: block;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 9px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--text-mid);
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .stats-slider-row {
@@ -423,10 +426,10 @@ body > div {
 }
 
 .stats-narration {
-  margin-top: 14px;
-  max-width: 24ch;
-  font-size: 12px;
-  line-height: 1.55;
+  margin-top: 8px;
+  max-width: 22ch;
+  font-size: 11px;
+  line-height: 1.5;
   color: var(--text-mid);
 }
 

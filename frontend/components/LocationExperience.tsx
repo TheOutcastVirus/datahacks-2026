@@ -19,9 +19,8 @@ import {
 import type { ViewerCommandApi, ViewerState } from '@/lib/viewer-types';
 
 import VoiceAssistantBar from '@/components/VoiceAssistantBar';
-import VoiceCaptionPanel from '@/components/VoiceCaptionPanel';
 import SplatViewer from '@/components/SplatViewer';
-import { useLocalSpeechToText } from '@/hooks/useLocalSpeechToText';
+import { useAssemblyAISpeechToText } from '@/hooks/useAssemblyAISpeechToText';
 import { useVoicePlayback } from '@/hooks/useVoicePlayback';
 
 const MAX_VISUALIZED_RISE_METERS = 2.0;
@@ -37,21 +36,47 @@ function clamp(value: number, min: number, max: number) {
 }
 
 export default function LocationExperience({ location }: { location: LocationRecord }) {
+  const fallbackHotspot = {
+    id: 'overview',
+    name: location.name,
+    aliases: [location.name.toLowerCase(), 'overview', 'scene'],
+    description: location.description,
+    cameraPose: {
+      position: [-3.5, 2, 5.5],
+      target: [0, 0.4, 0],
+    },
+    explainText: `Showing ${location.name}. ${location.description}`,
+  };
+  const fallbackScenario = {
+    id: 'baseline',
+    label: location.scene.label,
+    year: location.scene.year,
+    riseMeters: location.scene.rise,
+    narration: `${location.name} is shown in its ${location.scene.label.toLowerCase()} state.`,
+    color: location.scene.color,
+  };
+  const hotspots = location.hotspots?.length ? location.hotspots : [fallbackHotspot];
+  const scenarios = location.scenarios?.length ? location.scenarios : [fallbackScenario];
+  const normalizedLocation = {
+    ...location,
+    hotspots,
+    scenarios,
+    defaultHotspotId: location.defaultHotspotId ?? hotspots[0].id,
+  };
   const viewerRef = useRef<ViewerCommandApi | null>(null);
-  const pointerActiveRef = useRef(false);
   const [viewerState, setViewerState] = useState<ViewerState>('loading');
   const [speakerEnabled, setSpeakerEnabled] = useState(true);
-  const [commandLabel, setCommandLabel] = useState('Ready');
-  const [response, setResponse] = useState(
+  const [, setCommandLabel] = useState('Ready');
+  const [, setResponse] = useState(
     'Use your voice to move around the scene, switch scenarios, and ask what the model is showing.',
   );
-  const [activeHotspotId, setActiveHotspotId] = useState(location.defaultHotspotId);
-  const [activeScenarioId, setActiveScenarioId] = useState(location.scenarios[0]?.id);
+  const [activeHotspotId, setActiveHotspotId] = useState(normalizedLocation.defaultHotspotId);
+  const [activeScenarioId, setActiveScenarioId] = useState(normalizedLocation.scenarios[0].id);
   const [compareScenarioIds, setCompareScenarioIds] = useState<
     [string, string] | null
   >(null);
-  const [riseMeters, setRiseMeters] = useState(location.scene.rise);
-  const speech = useLocalSpeechToText([
+  const [riseMeters, setRiseMeters] = useState(normalizedLocation.scene.rise);
+  const speech = useAssemblyAISpeechToText([
     'show 2050',
     'show baseline',
     'show worst case',
@@ -61,24 +86,22 @@ export default function LocationExperience({ location }: { location: LocationRec
     'reset camera',
     'what floods first here',
     'what data is this based on',
-    ...location.hotspots.flatMap((hotspot) => [hotspot.name, ...hotspot.aliases]),
+    ...hotspots.flatMap((hotspot) => [hotspot.name, ...hotspot.aliases]),
   ]);
-  const playback = useVoicePlayback();
+  const { isPlaying: isVoicePlaying, speak } = useVoicePlayback();
 
   const activeHotspot =
-    location.hotspots.find((hotspot) => hotspot.id === activeHotspotId) ??
-    location.hotspots[0];
+    hotspots.find((hotspot) => hotspot.id === activeHotspotId) ?? hotspots[0];
   const activeScenario =
-    location.scenarios.find((scenario) => scenario.id === activeScenarioId) ??
-    location.scenarios[0];
+    scenarios.find((scenario) => scenario.id === activeScenarioId) ?? scenarios[0];
 
   const speakIfEnabled = async (text: string) => {
     if (!speakerEnabled) return;
-    await playback.speak(text);
+    await speak(text);
   };
 
   const runVoiceCommand = async (rawTranscript: string) => {
-    const intent = parseVoiceIntent(location, rawTranscript);
+    const intent = parseVoiceIntent(normalizedLocation, rawTranscript);
     setCommandLabel(describeIntent(intent.type));
 
     if (
@@ -94,7 +117,7 @@ export default function LocationExperience({ location }: { location: LocationRec
     switch (intent.type) {
       case 'go_to_hotspot': {
         const hotspot =
-          location.hotspots.find((item) => item.id === intent.hotspotId) ?? activeHotspot;
+          hotspots.find((item) => item.id === intent.hotspotId) ?? activeHotspot;
         await viewerRef.current?.goToHotspot(intent.hotspotId);
         setActiveHotspotId(hotspot.id);
         const nextResponse = buildNavigationResponse(hotspot);
@@ -124,7 +147,7 @@ export default function LocationExperience({ location }: { location: LocationRec
       }
       case 'reset_camera': {
         viewerRef.current?.resetCamera();
-        setActiveHotspotId(location.defaultHotspotId);
+        setActiveHotspotId(normalizedLocation.defaultHotspotId);
         const nextResponse = {
           caption: 'Camera reset to the default view.',
           speech: 'Resetting the camera to the default view.',
@@ -135,13 +158,13 @@ export default function LocationExperience({ location }: { location: LocationRec
       }
       case 'set_scenario': {
         const scenario =
-          location.scenarios.find((item) => item.id === intent.scenarioId) ?? activeScenario;
+          scenarios.find((item) => item.id === intent.scenarioId) ?? activeScenario;
         viewerRef.current?.setScenario(scenario.id);
         setCompareScenarioIds(null);
         setActiveScenarioId(scenario.id);
         setRiseMeters(scenario.riseMeters);
         const nextResponse = buildScenarioResponse(
-          location,
+          normalizedLocation,
           scenario,
           intent.snappedFromYear,
         );
@@ -151,23 +174,22 @@ export default function LocationExperience({ location }: { location: LocationRec
       }
       case 'compare_scenarios': {
         const left =
-          location.scenarios.find((item) => item.id === intent.leftId) ??
-          location.scenarios[0];
+          scenarios.find((item) => item.id === intent.leftId) ?? scenarios[0];
         const right =
-          location.scenarios.find((item) => item.id === intent.rightId) ??
-          location.scenarios[location.scenarios.length - 1];
+          scenarios.find((item) => item.id === intent.rightId) ??
+          scenarios[scenarios.length - 1];
         viewerRef.current?.compareScenario(left.id, right.id);
         setCompareScenarioIds([left.id, right.id]);
         setActiveScenarioId(right.id);
         setRiseMeters(right.riseMeters);
-        const nextResponse = buildCompareResponse(location, left, right);
+        const nextResponse = buildCompareResponse(normalizedLocation, left, right);
         setResponse(nextResponse.caption);
         await speakIfEnabled(nextResponse.speech);
         return;
       }
       case 'explain_current_view': {
         const nextResponse = buildCurrentViewResponse(
-          location,
+          normalizedLocation,
           activeHotspot,
           activeScenario,
         );
@@ -176,21 +198,20 @@ export default function LocationExperience({ location }: { location: LocationRec
         return;
       }
       case 'explain_flood_risk': {
-        const hotspot =
-          location.hotspots.find((item) => item.id === intent.hotspotId) ?? activeHotspot;
+        const hotspot = hotspots.find((item) => item.id === intent.hotspotId) ?? activeHotspot;
         const nextResponse = buildFloodRiskResponse(hotspot);
         setResponse(nextResponse.caption);
         await speakIfEnabled(nextResponse.speech);
         return;
       }
       case 'explain_sources': {
-        const nextResponse = buildSourcesResponse(location);
+        const nextResponse = buildSourcesResponse(normalizedLocation);
         setResponse(nextResponse.caption);
         await speakIfEnabled(nextResponse.speech);
         return;
       }
       case 'help': {
-        const nextResponse = buildHelpResponse(location);
+        const nextResponse = buildHelpResponse(normalizedLocation);
         setResponse(nextResponse.caption);
         await speakIfEnabled(nextResponse.speech);
         return;
@@ -204,28 +225,30 @@ export default function LocationExperience({ location }: { location: LocationRec
     }
   };
 
-  const handlePressStart = async () => {
-    pointerActiveRef.current = true;
-    await speech.startRecording();
-  };
-
-  const handlePressEnd = async () => {
-    if (!pointerActiveRef.current) return;
-    pointerActiveRef.current = false;
-    const nextTranscript = await speech.stopRecording();
-    if (nextTranscript) {
-      await runVoiceCommand(nextTranscript);
+  const handleMicClick = async () => {
+    if (
+      speech.state === 'recording' ||
+      speech.state === 'connecting' ||
+      speech.state === 'stopping'
+    ) {
+      const nextTranscript = await speech.stopRecording();
+      if (nextTranscript) {
+        await runVoiceCommand(nextTranscript);
+      }
+      return;
     }
+
+    await speech.startRecording();
   };
 
   const currentScenario: ScenarioRecord =
     compareScenarioIds?.[1]
-      ? location.scenarios.find((scenario) => scenario.id === compareScenarioIds[1]) ??
+      ? scenarios.find((scenario) => scenario.id === compareScenarioIds[1]) ??
         activeScenario
       : activeScenario;
   const compareScenarios = compareScenarioIds
     ? compareScenarioIds
-        .map((id) => location.scenarios.find((scenario) => scenario.id === id))
+        .map((id) => scenarios.find((scenario) => scenario.id === id))
         .filter(Boolean) as ScenarioRecord[]
     : [];
   const scenarioLabel = compareScenarios.length
@@ -240,10 +263,10 @@ export default function LocationExperience({ location }: { location: LocationRec
           <SplatViewer
             ref={viewerRef}
             floodProgress={floodProgress}
-            hotspots={location.hotspots}
+            hotspots={hotspots}
             onViewerStateChange={setViewerState}
-            splatUrl={location.splatUrl}
-            renderer={location.renderer ?? 'auto'}
+            splatUrl={normalizedLocation.splatUrl}
+            renderer={normalizedLocation.renderer ?? 'auto'}
           />
         </div>
 
@@ -285,13 +308,13 @@ export default function LocationExperience({ location }: { location: LocationRec
 
         <div className="attr-panel">
           <div className="attr-title">Location</div>
-          <div className="attr-item attr-item-strong">{location.name}</div>
-          <div className="attr-item">{location.description}</div>
+          <div className="attr-item attr-item-strong">{normalizedLocation.name}</div>
+          <div className="attr-item">{normalizedLocation.description}</div>
           <div className="attr-title attr-title-spaced">Active Hotspot</div>
           <div className="attr-item attr-item-strong">{activeHotspot.name}</div>
           <div className="attr-item">{activeHotspot.description}</div>
           <div className="attr-title attr-title-spaced">Data Sources</div>
-          {location.sources.map((source) => (
+          {normalizedLocation.sources.map((source) => (
             <div key={source} className="attr-item">
               {source}
             </div>
@@ -300,35 +323,28 @@ export default function LocationExperience({ location }: { location: LocationRec
 
         <VoiceAssistantBar
           isRecording={speech.state === 'recording'}
-          isSpeaking={playback.isPlaying}
+          isSpeaking={isVoicePlaying}
           isSupported={speech.isSupported}
-          isWorking={speech.state === 'loading-model' || speech.state === 'transcribing'}
-          onPressEnd={handlePressEnd}
-          onPressStart={handlePressStart}
+          isWorking={speech.state === 'connecting' || speech.state === 'stopping'}
+          onMicClick={handleMicClick}
           onToggleSpeaker={() => setSpeakerEnabled((current) => !current)}
           speakerEnabled={speakerEnabled}
           statusLabel={
             speech.error
               ? speech.error
-              : speech.state === 'loading-model'
-                ? 'Preparing Chrome on-device speech…'
-                : speech.state === 'transcribing'
-                  ? 'Finalizing local transcript…'
+              : speech.state === 'connecting'
+                ? 'Connecting to AssemblyAI…'
+                : speech.state === 'stopping'
+                  ? 'Finalizing AssemblyAI transcript…'
                   : speech.state === 'recording'
-                    ? 'Listening… release to send'
+                    ? 'Listening via AssemblyAI…'
                     : speech.isSupported
-                      ? 'Push to talk for scene commands'
-                      : 'Chrome on-device speech is not supported in this browser'
+                      ? 'Tap the mic to start or stop recording'
+                      : 'Mic recording is not supported in this browser'
           }
           transcript={speech.transcript}
         />
 
-        <VoiceCaptionPanel
-          commandLabel={commandLabel}
-          error={speech.error ?? playback.error}
-          response={response}
-          transcript={speech.transcript}
-        />
       </div>
     </>
   );
