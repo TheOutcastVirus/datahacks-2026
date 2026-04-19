@@ -4,6 +4,7 @@ let trajectoryPoints = [];
 let trajArcLengths = [0];
 let trajTotalLength = 0;
 let trajectoryT = 0.0;
+let sampledTrajectoryIndices = [];
 
 // Orbit radius used as pivot distance for mouse-drag orbiting
 let orbitRadius = 4;
@@ -38,12 +39,65 @@ function getTrajectoryPosition(t) {
     return trajectoryPoints[trajectoryPoints.length - 1].slice();
 }
 
-function setPositionFromTrajectory(inv) {
-    const pos = getTrajectoryPosition(trajectoryT);
-    inv[12] = pos[0];
-    inv[13] = pos[1];
-    inv[14] = pos[2];
-    return inv;
+function mat3ToQuat(R) {
+    const r = R.flat();
+    const trace = r[0] + r[4] + r[8];
+    let w, x, y, z;
+    if (trace > 0) {
+        const s = 0.5 / Math.sqrt(trace + 1);
+        w = 0.25 / s; x = (r[7] - r[5]) * s; y = (r[2] - r[6]) * s; z = (r[3] - r[1]) * s;
+    } else if (r[0] > r[4] && r[0] > r[8]) {
+        const s = 2 * Math.sqrt(1 + r[0] - r[4] - r[8]);
+        w = (r[7] - r[5]) / s; x = 0.25 * s; y = (r[1] + r[3]) / s; z = (r[2] + r[6]) / s;
+    } else if (r[4] > r[8]) {
+        const s = 2 * Math.sqrt(1 + r[4] - r[0] - r[8]);
+        w = (r[2] - r[6]) / s; x = (r[1] + r[3]) / s; y = 0.25 * s; z = (r[5] + r[7]) / s;
+    } else {
+        const s = 2 * Math.sqrt(1 + r[8] - r[0] - r[4]);
+        w = (r[3] - r[1]) / s; x = (r[2] + r[6]) / s; y = (r[5] + r[7]) / s; z = 0.25 * s;
+    }
+    const len = Math.sqrt(w*w + x*x + y*y + z*z);
+    return [w/len, x/len, y/len, z/len];
+}
+
+function slerpQuat(q1, q2, t) {
+    let [w1,x1,y1,z1] = q1, [w2,x2,y2,z2] = q2;
+    let dot = w1*w2 + x1*x2 + y1*y2 + z1*z2;
+    if (dot < 0) { w2=-w2; x2=-x2; y2=-y2; z2=-z2; dot=-dot; }
+    if (dot > 0.9995) {
+        const len = Math.sqrt((w1+t*(w2-w1))**2 + (x1+t*(x2-x1))**2 + (y1+t*(y2-y1))**2 + (z1+t*(z2-z1))**2);
+        return [(w1+t*(w2-w1))/len, (x1+t*(x2-x1))/len, (y1+t*(y2-y1))/len, (z1+t*(z2-z1))/len];
+    }
+    const theta0 = Math.acos(dot), theta = theta0 * t;
+    const s1 = Math.cos(theta) - dot * Math.sin(theta) / Math.sin(theta0);
+    const s2 = Math.sin(theta) / Math.sin(theta0);
+    return [s1*w1+s2*w2, s1*x1+s2*x2, s1*y1+s2*y2, s1*z1+s2*z2];
+}
+
+function quatToMat3(q) {
+    const [w,x,y,z] = q;
+    return [
+        [1-2*(y*y+z*z), 2*(x*y-w*z), 2*(x*z+w*y)],
+        [2*(x*y+w*z), 1-2*(x*x+z*z), 2*(y*z-w*x)],
+        [2*(x*z-w*y), 2*(y*z+w*x), 1-2*(x*x+y*y)]
+    ];
+}
+
+function getTrajectoryViewMatrix(t) {
+    const pos = getTrajectoryPosition(t);
+    // Find the two sampled cameras that bracket t
+    let camA = 0, camB = Math.min(1, cameras.length - 1);
+    for (let i = 0; i < cameras.length - 1; i++) {
+        if (t <= trajArcLengths[sampledTrajectoryIndices[i + 1]]) {
+            camA = i; camB = i + 1; break;
+        }
+        camA = i; camB = i + 1;
+    }
+    const tA = trajArcLengths[sampledTrajectoryIndices[camA]];
+    const tB = trajArcLengths[sampledTrajectoryIndices[camB]];
+    const alpha = tB > tA ? Math.max(0, Math.min(1, (t - tA) / (tB - tA))) : 0;
+    const rot = quatToMat3(slerpQuat(mat3ToQuat(cameras[camA].rotation), mat3ToQuat(cameras[camB].rotation), alpha));
+    return getViewMatrix({ position: pos, rotation: rot });
 }
 
 let camera;
@@ -656,7 +710,6 @@ async function main() {
     // Dynamically load pose data based on which PLY is being viewed
     const urlParam = params.get("url") || "";
     const isAnnaberg = urlParam.toLowerCase().includes("annaberg");
-    let sampledTrajectoryIndices;
     if (isAnnaberg) {
         const mod = await import("./annaberg-pose-data.js");
         // Pose data is in raw COLMAP space; apply the same gsplat normalize_world_space
@@ -1294,12 +1347,14 @@ async function main() {
         const TRAJ_STEP = 0.008;
         if (activeKeys.includes("ArrowLeft") && !shiftKey) {
             trajectoryT = Math.max(0, trajectoryT - TRAJ_STEP);
-            setPositionFromTrajectory(inv);
+            viewMatrix = getTrajectoryViewMatrix(trajectoryT);
+            inv = invert4(viewMatrix);
             carousel = false;
         }
         if (activeKeys.includes("ArrowRight") && !shiftKey) {
             trajectoryT = Math.min(trajTotalLength, trajectoryT + TRAJ_STEP);
-            setPositionFromTrajectory(inv);
+            viewMatrix = getTrajectoryViewMatrix(trajectoryT);
+            inv = invert4(viewMatrix);
             carousel = false;
         }
         if (activeKeys.includes("KeyQ")) inv = rotate4(inv, 0.01, 0, 0, 1);
@@ -1443,7 +1498,8 @@ async function main() {
         inv2[12] += xyzOffset[0];
         inv2[13] += xyzOffset[1];
         inv2[14] += xyzOffset[2];
-        // Apply zoom by pushing along camera local forward axis
+        // Apply zoom — clamp to prevent seeing outside the splat boundary
+        zoomOffset = Math.max(-1.5, Math.min(3, zoomOffset));
         inv2 = translate4(inv2, 0, 0, zoomOffset);
         let actualViewMatrix = invert4(inv2);
 
