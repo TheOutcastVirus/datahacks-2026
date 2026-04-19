@@ -1,0 +1,57 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]: SOJS
+      - generic [ref=e6]: Location Render
+    - navigation [ref=e7]:
+      - link "Dashboard" [ref=e8] [cursor=pointer]:
+        - /url: /
+  - generic [ref=e9]:
+    - generic "3D Gaussian Splat Viewer" [ref=e11]:
+      - iframe [ref=e12]:
+        - generic [active] [ref=f1e1]:
+          - generic:
+            - generic: ⬡
+      - generic [ref=e15]:
+        - generic [ref=e16]:
+          - generic [ref=e18]: Hand
+          - generic [ref=e19]: ·
+          - generic [ref=e20]: "Off"
+        - button "On" [ref=e21] [cursor=pointer]
+      - button "Camera Setup" [ref=e23] [cursor=pointer]
+    - generic [ref=e24]:
+      - generic [ref=e25]: Sea Level Rise
+      - generic [ref=e26]: +0.00m
+      - generic [ref=e27]:
+        - generic [ref=e28]: "2026"
+        - generic [ref=e29]: ·
+        - generic [ref=e30]: Baseline
+      - generic [ref=e31]: Baseline render capture from output.ply with no added sea-level rise.
+      - generic [ref=e32]:
+        - generic [ref=e33]: Water Level
+        - generic [ref=e34]:
+          - slider "Water level" [ref=e35]: "0"
+          - generic [ref=e36]: 0%
+        - generic [ref=e37]:
+          - generic [ref=e38]: Dry
+          - generic [ref=e39]: Flooded
+    - generic [ref=e40]:
+      - generic [ref=e41]: Location
+      - generic [ref=e42]: Output Splat
+      - generic [ref=e43]:
+        - generic [ref=e44]: View
+        - generic [ref=e45]: SLAM output
+      - generic [ref=e46]: Data Sources
+      - generic [ref=e47]: output.ply export
+      - generic [ref=e48]: Gaussian splat renderer
+    - generic [ref=e50]:
+      - generic [ref=e53]:
+        - generic [ref=e54]: Voice Assistant
+        - generic [ref=e55]: Hold the mic, speak, then release to send
+      - button "Hold to talk" [ref=e56]:
+        - img [ref=e57]
+    - complementary [ref=e60]:
+      - generic [ref=e61]: Voice Feed
+      - generic [ref=e62]: Ready
+      - paragraph [ref=e63]: Use your voice to move around the scene, switch scenarios, and ask what the model is showing.
+      - paragraph [ref=e64]: Waiting for a voice command.

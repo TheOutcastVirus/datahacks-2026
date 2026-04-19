@@ -11,6 +11,12 @@ import {
 import type { Camera, Vector3 } from 'three';
 import type { OrbitControls as OrbitControlsType } from 'three/examples/jsm/controls/OrbitControls.js';
 
+import {
+  buildEulerRotationMatrices,
+  computeFloodVolumeFromLocalBox,
+  lerp,
+} from '@/lib/flood';
+import type { FloodVolume } from '@/lib/flood';
 import type {
   FloodCalibration,
   FloodOverlay,
@@ -89,6 +95,10 @@ type FloodShader = {
     uFloodEdgeSoftness: { value: number };
     uFloodTintStrength: { value: number };
     uFloodColor: { value: import('three').Color };
+    uFloodBoundsMinXZ: { value: import('three').Vector2 };
+    uFloodBoundsMaxXZ: { value: import('three').Vector2 };
+    uFloodReach: { value: number };
+    uFloodProgress: { value: number };
     uTime: { value: number };
   };
 };
@@ -98,7 +108,6 @@ type FloodOverlayController = {
   update: (progress: number, calibration: FloodCalibration, timeSeconds: number) => void;
   dispose: () => void;
 };
-
 const HAND_LANDMARKER_MODEL_URL =
   'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
 const HAND_LANDMARKER_WASM_URL =
@@ -210,10 +219,6 @@ function rollOrbitCamera(controls: OrbitControlsType, delta: number) {
   camera.up.normalize();
   controls.update();
 }
-function lerp(start: number, end: number, amount: number) {
-  return start + (end - start) * amount;
-}
-
 function getWorldYCoefficients(rx: number, ry: number, rz: number) {
   const cx = Math.cos(rx);
   const sx = Math.sin(rx);
@@ -227,36 +232,6 @@ function getWorldYCoefficients(rx: number, ry: number, rz: number) {
     m11: cx * cz + sx * sy * sz,
     m12: cx * sy * sz - cz * sx,
   };
-}
-
-function getWorldYFromLocal(
-  x: number,
-  y: number,
-  z: number,
-  coefficients: ReturnType<typeof getWorldYCoefficients>,
-) {
-  return coefficients.m10 * x + coefficients.m11 * y + coefficients.m12 * z;
-}
-
-function computeWorldYBounds(
-  localBox: { min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } },
-  rx: number,
-  ry: number,
-  rz: number,
-): FloodCalibration {
-  const coefficients = getWorldYCoefficients(rx, ry, rz);
-  const { min, max } = localBox;
-  const xs = [min.x, max.x];
-  const ys = [min.y, max.y];
-  const zs = [min.z, max.z];
-  let minY = Infinity;
-  let maxY = -Infinity;
-  for (const x of xs) for (const y of ys) for (const z of zs) {
-    const wy = getWorldYFromLocal(x, y, z, coefficients);
-    if (wy < minY) minY = wy;
-    if (wy > maxY) maxY = wy;
-  }
-  return { startY: minY, endY: maxY };
 }
 
 function solveHorizontalPlaneLocalY(
@@ -460,25 +435,29 @@ function createFloodOverlayController(
     },
   };
 }
-
 function postSplatFlood(
   targetWindow: Window | null | undefined,
   progress: number,
   calibration: FloodCalibration | undefined,
+  rx: number,
+  ry: number,
+  rz: number,
 ) {
   if (!targetWindow) return;
-
-  const splatFloodCalibration = calibration ?? {
-    startY: -1.5,
-    endY: 0.8,
-  };
+  const { rotationMatrix, inverseRotationMatrix } = buildEulerRotationMatrices(rx, ry, rz);
 
   targetWindow.postMessage(
     {
       type: 'splat-flood',
       progress,
-      startY: splatFloodCalibration.startY,
-      endY: splatFloodCalibration.endY,
+      startY: calibration?.startY,
+      endY: calibration?.endY,
+      minX: calibration?.minX,
+      maxX: calibration?.maxX,
+      minZ: calibration?.minZ,
+      maxZ: calibration?.maxZ,
+      rotationMatrix,
+      inverseRotationMatrix,
     },
     location.origin,
   );
@@ -554,7 +533,7 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
   const resetCameraRef = useRef<CameraSnapshot | null>(null);
   const floodShaderRef = useRef<FloodShader | null>(null);
   const floodOverlayRef = useRef<FloodOverlayController | null>(null);
-  const floodCalibrationRef = useRef<FloodCalibration | null>(null);
+  const floodCalibrationRef = useRef<FloodVolume | null>(null);
   const localBBoxRef = useRef<{ min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } } | null>(null);
   const floodProgressRef = useRef(clamp(floodProgress, 0, 1));
   const pointsRef = useRef<import('three').Points | null>(null);
@@ -634,6 +613,17 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
         floodCalibration.endY,
         clampedFloodProgress,
       );
+      floodShader.uniforms.uFloodBoundsMinXZ.value.set(
+        floodCalibration.minX,
+        floodCalibration.minZ,
+      );
+      floodShader.uniforms.uFloodBoundsMaxXZ.value.set(
+        floodCalibration.maxX,
+        floodCalibration.maxZ,
+      );
+      floodShader.uniforms.uFloodReach.value =
+        floodCalibration.maxEdgeDistance * clampedFloodProgress;
+      floodShader.uniforms.uFloodProgress.value = clampedFloodProgress;
     }
     if (floodOverlayController && floodCalibration) {
       floodOverlayController.update(
@@ -642,13 +632,19 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
         performance.now() / 1000,
       );
     }
-
     // Handle splat iframe flood update
     if (!usePlyRenderer) {
       const splatWindow = iframeRef.current?.contentWindow;
-      postSplatFlood(splatWindow, clampedFloodProgress, propFloodCalibration);
+      postSplatFlood(
+        splatWindow,
+        clampedFloodProgress,
+        propFloodCalibration,
+        rotX,
+        rotY,
+        rotZ,
+      );
     }
-  }, [clampedFloodProgress, usePlyRenderer, propFloodCalibration]);
+  }, [clampedFloodProgress, usePlyRenderer, propFloodCalibration, rotX, rotY, rotZ]);
 
   useEffect(() => {
     rotRef.current = { x: rotX, y: rotY, z: rotZ };
@@ -819,11 +815,12 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
           : { min: { x: 0, y: 0, z: 0 }, max: { x: 1, y: 1, z: 1 } };
         localBBoxRef.current = localBox;
         const { x: currentRotX, y: currentRotY, z: currentRotZ } = rotRef.current;
-        const floodCalibration = computeWorldYBounds(
+        const floodCalibration = computeFloodVolumeFromLocalBox(
           localBox,
           currentRotX,
           currentRotY,
           currentRotZ,
+          propFloodCalibration,
         );
         floodCalibrationRef.current = floodCalibration;
         const initialFloodLevelY = lerp(
@@ -831,6 +828,7 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
           floodCalibration.endY,
           floodProgressRef.current,
         );
+        const initialFloodReach = floodCalibration.maxEdgeDistance * floodProgressRef.current;
 
         const boundingSphere =
           loadedGeometry.boundingSphere ?? new THREE.Sphere(new THREE.Vector3(), 1);
@@ -855,14 +853,22 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
           shader.uniforms.uFloodEdgeSoftness = { value: 0.02 };
           shader.uniforms.uFloodTintStrength = { value: 0.16 };
           shader.uniforms.uFloodColor = { value: new THREE.Color('#167d96') };
+          shader.uniforms.uFloodBoundsMinXZ = {
+            value: new THREE.Vector2(floodCalibration.minX, floodCalibration.minZ),
+          };
+          shader.uniforms.uFloodBoundsMaxXZ = {
+            value: new THREE.Vector2(floodCalibration.maxX, floodCalibration.maxZ),
+          };
+          shader.uniforms.uFloodReach = { value: initialFloodReach };
+          shader.uniforms.uFloodProgress = { value: floodProgressRef.current };
           shader.uniforms.uTime = { value: performance.now() / 1000 };
 
           shader.vertexShader = `
-            varying float vPointY;
+            varying vec3 vWorldPos;
           ${shader.vertexShader}`.replace(
             '#include <begin_vertex>',
             `#include <begin_vertex>
-            vPointY = (modelMatrix * vec4(position, 1.0)).y;`,
+            vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;`,
           );
 
           shader.fragmentShader = `
@@ -871,29 +877,37 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
             uniform float uFloodEdgeSoftness;
             uniform float uFloodTintStrength;
             uniform vec3 uFloodColor;
+            uniform vec2 uFloodBoundsMinXZ;
+            uniform vec2 uFloodBoundsMaxXZ;
+            uniform float uFloodReach;
+            uniform float uFloodProgress;
             uniform float uTime;
-            varying float vPointY;
+            varying vec3 vWorldPos;
           ${shader.fragmentShader}`.replace(
             '#include <color_fragment>',
             `#include <color_fragment>
-            float submerged = smoothstep(
+            float heightSubmerged = smoothstep(
               uFloodLevelY + uFloodEdgeSoftness,
               uFloodLevelY - uFloodEdgeSoftness,
-              vPointY
+              vWorldPos.y
             );
 
-            float band = 1.0 - smoothstep(
+            float waterlineBand = 1.0 - smoothstep(
               0.0,
               uFloodBandWidth,
-              abs(vPointY - uFloodLevelY)
+              abs(vWorldPos.y - uFloodLevelY)
             );
 
-            float pulse = 0.88 + 0.12 * sin(uTime * 1.6 + vPointY * 24.0);
+            float band = waterlineBand;
+
+            float pulse = 0.88 + 0.12 * sin(
+              uTime * 1.6 + vWorldPos.x * 2.2 + vWorldPos.z * 1.8
+            );
 
             diffuseColor.rgb = mix(
               diffuseColor.rgb,
               uFloodColor,
-              submerged * uFloodTintStrength
+              heightSubmerged * uFloodTintStrength
             );
             diffuseColor.rgb += band * pulse * vec3(0.05, 0.10, 0.13);`,
           );
@@ -1091,6 +1105,17 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
               activeFloodCalibration.endY,
               floodProgressRef.current,
             );
+            floodShader.uniforms.uFloodBoundsMinXZ.value.set(
+              activeFloodCalibration.minX,
+              activeFloodCalibration.minZ,
+            );
+            floodShader.uniforms.uFloodBoundsMaxXZ.value.set(
+              activeFloodCalibration.maxX,
+              activeFloodCalibration.maxZ,
+            );
+            floodShader.uniforms.uFloodReach.value =
+              activeFloodCalibration.maxEdgeDistance * floodProgressRef.current;
+            floodShader.uniforms.uFloodProgress.value = floodProgressRef.current;
           }
           if (floodOverlayController && activeFloodCalibration) {
             floodOverlayController.update(
@@ -1099,7 +1124,6 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
               performance.now() / 1000,
             );
           }
-
           if (keysDown.size > 0) {
             const speed = radius * 0.014;
             const forward = camera.getWorldDirection(new THREE.Vector3());
@@ -1157,7 +1181,7 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
       actionApiRef.current = noopViewerApi;
       canvasHost.replaceChildren();
     };
-  }, [floodOverlay, hotspotMap, splatUrl, usePlyRenderer]);
+  }, [floodOverlay, hotspotMap, propFloodCalibration, splatUrl, usePlyRenderer]);
 
   useEffect(() => {
     if (!handControlEnabled || viewerState !== 'ready') return;
@@ -1677,13 +1701,21 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
       if (pointsRef.current) {
         pointsRef.current.rotation.set(rotX, rotY, rotZ);
         const lb = localBBoxRef.current;
-        if (lb) floodCalibrationRef.current = computeWorldYBounds(lb, rotX, rotY, rotZ);
+        if (lb) {
+          floodCalibrationRef.current = computeFloodVolumeFromLocalBox(
+            lb,
+            rotX,
+            rotY,
+            rotZ,
+            propFloodCalibration,
+          );
+        }
       }
       floodOverlayRef.current?.rebuild(rotX, rotY, rotZ);
     } else if (initialRotApplied.current) {
       applySplatRotation(rotX, rotY, rotZ);
     }
-  }, [rotX, rotY, rotZ, usePlyRenderer]);
+  }, [propFloodCalibration, rotX, rotY, rotZ, usePlyRenderer]);
 
   const prevCamRef = useRef({ elev: 0.238, dist: 1.350 });
 
@@ -1732,6 +1764,9 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
               iframeRef.current?.contentWindow,
               floodProgressRef.current,
               propFloodCalibration,
+              rotRef.current.x,
+              rotRef.current.y,
+              rotRef.current.z,
             );
           }}
           style={{ border: 'none', width: '100%', height: '100%', display: 'block' }}

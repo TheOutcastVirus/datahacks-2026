@@ -42,8 +42,14 @@ function getSupportedFeatures() {
     return false;
   }
 
-  return typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
+  return (
+    typeof navigator !== 'undefined' &&
+    !!navigator.mediaDevices?.getUserMedia &&
+    typeof AudioWorkletNode !== 'undefined'
+  );
 }
+
+const ASSEMBLY_CAPTURE_WORKLET_URL = '/audio-worklets/assemblyai-capture.worklet.js';
 
 export type BrowserAudioSupport = 'unknown' | 'supported' | 'unsupported';
 
@@ -165,7 +171,7 @@ export function useAssemblyAISpeechToText(phraseHints: string[] = []) {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const workletRef = useRef<AudioWorkletNode | null>(null);
   const pendingSamplesRef = useRef<number[]>([]);
   const queuedChunksRef = useRef<Int16Array[]>([]);
   const finalTranscriptRef = useRef('');
@@ -203,8 +209,8 @@ export function useAssemblyAISpeechToText(phraseHints: string[] = []) {
         }
         socket?.close();
 
-        processorRef.current?.disconnect();
-        processorRef.current = null;
+        workletRef.current?.disconnect();
+        workletRef.current = null;
         sourceNodeRef.current?.disconnect();
         sourceNodeRef.current = null;
 
@@ -218,8 +224,8 @@ export function useAssemblyAISpeechToText(phraseHints: string[] = []) {
   }, []);
 
   const cleanup = async () => {
-    processorRef.current?.disconnect();
-    processorRef.current = null;
+    workletRef.current?.disconnect();
+    workletRef.current = null;
     sourceNodeRef.current?.disconnect();
     sourceNodeRef.current = null;
 
@@ -395,10 +401,18 @@ export function useAssemblyAISpeechToText(phraseHints: string[] = []) {
           const source = audioContext.createMediaStreamSource(stream);
           sourceNodeRef.current = source;
 
-          const processor = audioContext.createScriptProcessor(4096, 1, 1);
-          processorRef.current = processor;
+          await audioContext.audioWorklet.addModule(ASSEMBLY_CAPTURE_WORKLET_URL);
 
-          processor.onaudioprocess = (event) => {
+          const captureNode = new AudioWorkletNode(audioContext, 'assemblyai-capture', {
+            numberOfInputs: 1,
+            numberOfOutputs: 1,
+            channelCount: 1,
+            channelCountMode: 'explicit',
+            channelInterpretation: 'speakers',
+          });
+          workletRef.current = captureNode;
+
+          captureNode.port.onmessage = (event: MessageEvent<ArrayBuffer>) => {
             if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
               return;
             }
@@ -407,7 +421,12 @@ export function useAssemblyAISpeechToText(phraseHints: string[] = []) {
               return;
             }
 
-            const inputBuffer = event.inputBuffer.getChannelData(0);
+            const raw = event.data;
+            if (!(raw instanceof ArrayBuffer)) {
+              return;
+            }
+
+            const inputBuffer = new Float32Array(raw);
             const downsampled = downsampleBuffer(
               inputBuffer,
               audioContext.sampleRate,
@@ -423,8 +442,13 @@ export function useAssemblyAISpeechToText(phraseHints: string[] = []) {
             });
           };
 
-          source.connect(processor);
-          processor.connect(audioContext.destination);
+          source.connect(captureNode);
+          // Route through a silent sink instead of `destination` so the mic
+          // is captured for AssemblyAI without echoing back through the speakers.
+          const silentSink = audioContext.createGain();
+          silentSink.gain.value = 0;
+          captureNode.connect(silentSink);
+          silentSink.connect(audioContext.destination);
 
           setState('recording');
         } catch (startError) {
@@ -469,9 +493,9 @@ export function useAssemblyAISpeechToText(phraseHints: string[] = []) {
           return;
         }
 
-        if ((message as AssemblyTurnMessage).transcript !== undefined) {
+        if (message.type === 'Turn') {
           const turn = message as AssemblyTurnMessage;
-          const nextTranscript = turn.transcript.trim();
+          const nextTranscript = (turn.utterance || turn.transcript || '').trim();
           transcriptRef.current = nextTranscript;
           setTranscript(nextTranscript);
           if (turn.end_of_turn && nextTranscript) {

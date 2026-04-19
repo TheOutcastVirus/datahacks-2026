@@ -549,6 +549,14 @@ function createWorker(self) {
         // IJKL - quaternion/rot (uint8)
         const rowLength = 3 * 4 + 3 * 4 + 4 + 4;
         const buffer = new ArrayBuffer(rowLength * vertexCount);
+        const bounds = {
+            minX: Infinity,
+            minY: Infinity,
+            minZ: Infinity,
+            maxX: -Infinity,
+            maxY: -Infinity,
+            maxZ: -Infinity,
+        };
 
         console.time("build buffer");
         for (let j = 0; j < vertexCount; j++) {
@@ -598,6 +606,13 @@ function createWorker(self) {
             position[1] = attrs.y;
             position[2] = attrs.z;
 
+            bounds.minX = Math.min(bounds.minX, position[0]);
+            bounds.minY = Math.min(bounds.minY, position[1]);
+            bounds.minZ = Math.min(bounds.minZ, position[2]);
+            bounds.maxX = Math.max(bounds.maxX, position[0]);
+            bounds.maxY = Math.max(bounds.maxY, position[1]);
+            bounds.maxZ = Math.max(bounds.maxZ, position[2]);
+
             if (types["f_dc_0"]) {
                 const SH_C0 = 0.28209479177387814;
                 rgba[0] = (0.5 + SH_C0 * attrs.f_dc_0) * 255;
@@ -615,7 +630,7 @@ function createWorker(self) {
             }
         }
         console.timeEnd("build buffer");
-        return buffer;
+        return { buffer, bounds };
     }
 
     const throttledSort = () => {
@@ -637,9 +652,14 @@ function createWorker(self) {
         if (e.data.ply) {
             vertexCount = 0;
             runSort(viewProj);
-            buffer = processPlyBuffer(e.data.ply);
+            const processed = processPlyBuffer(e.data.ply);
+            buffer = processed.buffer;
             vertexCount = Math.floor(buffer.byteLength / rowLength);
-            postMessage({ buffer: buffer, save: !!e.data.save });
+            postMessage({
+                buffer: buffer,
+                bounds: processed.bounds,
+                save: !!e.data.save,
+            });
         } else if (e.data.buffer) {
             buffer = e.data.buffer;
             vertexCount = e.data.vertexCount;
@@ -659,6 +679,7 @@ precision highp int;
 
 uniform highp usampler2D u_texture;
 uniform mat4 projection, view;
+uniform mat4 uFloodRotation;
 uniform vec2 focal;
 uniform vec2 viewport;
 
@@ -667,12 +688,14 @@ in int index;
 
 out vec4 vColor;
 out vec2 vPosition;
-out float vWorldY;
+out vec3 vWorldPos;
+out vec3 vFloodPos;
 
 void main () {
     uvec4 cen = texelFetch(u_texture, ivec2((uint(index) & 0x3ffu) << 1, uint(index) >> 10), 0);
     vec3 worldPos = uintBitsToFloat(cen.xyz);
-    vWorldY = worldPos.y;
+    vWorldPos = worldPos;
+    vFloodPos = (uFloodRotation * vec4(worldPos, 1.0)).xyz;
     vec4 cam = view * vec4(worldPos, 1);
     vec4 pos2d = projection * cam;
 
@@ -729,7 +752,8 @@ uniform float uTime;
 
 in vec4 vColor;
 in vec2 vPosition;
-in float vWorldY;
+in vec3 vWorldPos;
+in vec3 vFloodPos;
 
 out vec4 fragColor;
 
@@ -740,30 +764,94 @@ void main () {
     
     vec3 baseColor = vColor.rgb;
     
-    float submerged = smoothstep(
+    float heightSubmerged = smoothstep(
         uFloodLevelY + uFloodEdgeSoftness,
         uFloodLevelY - uFloodEdgeSoftness,
-        vWorldY
+        vFloodPos.y
     );
-    
-    float band = 1.0 - smoothstep(
+
+    float waterlineBand = 1.0 - smoothstep(
         0.0,
         uFloodBandWidth,
-        abs(vWorldY - uFloodLevelY)
+        abs(vFloodPos.y - uFloodLevelY)
     );
-    
-    float pulse = 0.88 + 0.12 * sin(uTime * 1.6 + vWorldY * 24.0);
+
+    float band = waterlineBand;
+
+    float pulse = 0.88 + 0.12 * sin(
+        uTime * 1.6 + vFloodPos.x * 2.2 + vFloodPos.z * 1.8
+    );
     
     baseColor = mix(
         baseColor,
         uFloodColor,
-        submerged * uFloodTintStrength
+        heightSubmerged * uFloodTintStrength
     );
     baseColor += band * pulse * vec3(0.05, 0.10, 0.13);
     
     fragColor = vec4(B * baseColor, B);
 }
 
+`.trim();
+
+const waterVertexShaderSource = `
+#version 300 es
+precision highp float;
+
+uniform mat4 projection;
+uniform mat4 view;
+uniform mat4 uFloodInverseRotation;
+uniform vec2 uFloodBoundsMinXZ;
+uniform vec2 uFloodBoundsMaxXZ;
+uniform float uFloodLevelY;
+uniform float uTime;
+
+in vec2 position;
+
+out vec3 vWorldPos;
+out float vWaveStrength;
+
+void main () {
+    vec2 planeUv = position * 0.5 + 0.5;
+    vec2 span = (uFloodBoundsMaxXZ - uFloodBoundsMinXZ) * 1.06;
+    vec2 center = (uFloodBoundsMinXZ + uFloodBoundsMaxXZ) * 0.5;
+    vec2 floodXZ = center + (planeUv - 0.5) * span;
+
+    float waveA = sin(floodXZ.x * 3.4 + uTime * 1.25) * 0.035;
+    float waveB = cos(floodXZ.y * 2.8 - uTime * 1.08) * 0.028;
+    float waveC = sin((floodXZ.x + floodXZ.y) * 2.2 + uTime * 0.84) * 0.02;
+    float wave = waveA + waveB + waveC;
+
+    vec3 floodPos = vec3(floodXZ.x, uFloodLevelY + wave, floodXZ.y);
+    vec3 worldPos = (uFloodInverseRotation * vec4(floodPos, 1.0)).xyz;
+
+    vWorldPos = worldPos;
+    vWaveStrength = wave;
+    gl_Position = projection * view * vec4(worldPos, 1.0);
+}
+`.trim();
+
+const waterFragmentShaderSource = `
+#version 300 es
+precision highp float;
+
+uniform vec3 uWaterColor;
+uniform vec3 uCameraPos;
+
+in vec3 vWorldPos;
+in float vWaveStrength;
+
+out vec4 fragColor;
+
+void main () {
+    vec3 viewDir = normalize(uCameraPos - vWorldPos);
+    float fresnel = pow(1.0 - max(dot(viewDir, vec3(0.0, 1.0, 0.0)), 0.0), 2.4);
+    float ripple = 0.45 + 0.55 * clamp(vWaveStrength * 10.0 + 0.5, 0.0, 1.0);
+    vec3 color = mix(uWaterColor * 0.8, vec3(0.94, 0.985, 1.0), fresnel * 0.78);
+    color += vec3(0.08, 0.14, 0.18) * ripple;
+    float alpha = clamp(0.22 + fresnel * 0.34 + ripple * 0.12, 0.18, 0.74);
+    fragColor = vec4(color, alpha);
+}
 `.trim();
 
 let defaultViewMatrix = [
@@ -849,10 +937,29 @@ async function main() {
     gl.attachShader(program, vertexShader);
     gl.attachShader(program, fragmentShader);
     gl.linkProgram(program);
-    gl.useProgram(program);
-
     if (!gl.getProgramParameter(program, gl.LINK_STATUS))
         console.error(gl.getProgramInfoLog(program));
+
+    const waterVertexShader = gl.createShader(gl.VERTEX_SHADER);
+    gl.shaderSource(waterVertexShader, waterVertexShaderSource);
+    gl.compileShader(waterVertexShader);
+    if (!gl.getShaderParameter(waterVertexShader, gl.COMPILE_STATUS))
+        console.error(gl.getShaderInfoLog(waterVertexShader));
+
+    const waterFragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+    gl.shaderSource(waterFragmentShader, waterFragmentShaderSource);
+    gl.compileShader(waterFragmentShader);
+    if (!gl.getShaderParameter(waterFragmentShader, gl.COMPILE_STATUS))
+        console.error(gl.getShaderInfoLog(waterFragmentShader));
+
+    const waterProgram = gl.createProgram();
+    gl.attachShader(waterProgram, waterVertexShader);
+    gl.attachShader(waterProgram, waterFragmentShader);
+    gl.linkProgram(waterProgram);
+    if (!gl.getProgramParameter(waterProgram, gl.LINK_STATUS))
+        console.error(gl.getProgramInfoLog(waterProgram));
+
+    gl.useProgram(program);
 
     gl.disable(gl.DEPTH_TEST); // Disable depth testing
 
@@ -870,6 +977,7 @@ async function main() {
     const u_viewport = gl.getUniformLocation(program, "viewport");
     const u_focal = gl.getUniformLocation(program, "focal");
     const u_view = gl.getUniformLocation(program, "view");
+    const u_floodRotation = gl.getUniformLocation(program, "uFloodRotation");
     
     // Flood effect uniforms
     const u_floodLevelY = gl.getUniformLocation(program, "uFloodLevelY");
@@ -877,13 +985,41 @@ async function main() {
     const u_floodEdgeSoftness = gl.getUniformLocation(program, "uFloodEdgeSoftness");
     const u_floodTintStrength = gl.getUniformLocation(program, "uFloodTintStrength");
     const u_floodColor = gl.getUniformLocation(program, "uFloodColor");
+    const u_floodBoundsMinXZ = gl.getUniformLocation(program, "uFloodBoundsMinXZ");
+    const u_floodBoundsMaxXZ = gl.getUniformLocation(program, "uFloodBoundsMaxXZ");
     const u_time = gl.getUniformLocation(program, "uTime");
+
+    const u_waterProjection = gl.getUniformLocation(waterProgram, "projection");
+    const u_waterView = gl.getUniformLocation(waterProgram, "view");
+    const u_waterFloodInverseRotation = gl.getUniformLocation(waterProgram, "uFloodInverseRotation");
+    const u_waterBoundsMinXZ = gl.getUniformLocation(waterProgram, "uFloodBoundsMinXZ");
+    const u_waterBoundsMaxXZ = gl.getUniformLocation(waterProgram, "uFloodBoundsMaxXZ");
+    const u_waterLevelY = gl.getUniformLocation(waterProgram, "uFloodLevelY");
+    const u_waterTime = gl.getUniformLocation(waterProgram, "uTime");
+    const u_waterColor = gl.getUniformLocation(waterProgram, "uWaterColor");
+    const u_waterCameraPos = gl.getUniformLocation(waterProgram, "uCameraPos");
     
     // Flood state - will be updated via postMessage
     let floodLevelY = -9999.0; // Start below scene (no flooding)
     let floodStartY = 0.0;
     let floodEndY = 1.0;
     let floodProgress = 0.0;
+    let floodMinX = -1.0;
+    let floodMaxX = 1.0;
+    let floodMinZ = -1.0;
+    let floodMaxZ = 1.0;
+    let floodRotationMatrix = new Float32Array([
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1,
+    ]);
+    let floodInverseRotationMatrix = new Float32Array([
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1,
+    ]);
     
     // Set initial flood uniforms
     gl.uniform1f(u_floodLevelY, floodLevelY);
@@ -891,6 +1027,13 @@ async function main() {
     gl.uniform1f(u_floodEdgeSoftness, 0.012);
     gl.uniform1f(u_floodTintStrength, 0.58);
     gl.uniform3f(u_floodColor, 0.086, 0.49, 0.588); // #167d96
+    gl.uniformMatrix4fv(u_floodRotation, false, floodRotationMatrix);
+    gl.uniform2f(u_floodBoundsMinXZ, floodMinX, floodMinZ);
+    gl.uniform2f(u_floodBoundsMaxXZ, floodMaxX, floodMaxZ);
+
+    const updateFloodBounds = () => {
+        floodLevelY = floodStartY + (floodEndY - floodStartY) * floodProgress;
+    };
 
     // positions
     const triangleVertices = new Float32Array([-2, -2, 2, -2, 2, 2, -2, 2]);
@@ -915,6 +1058,13 @@ async function main() {
     gl.vertexAttribIPointer(a_index, 1, gl.INT, false, 0, 0);
     gl.vertexAttribDivisor(a_index, 1);
 
+    const waterPlaneVertices = new Float32Array([-1, -1, 1, -1, 1, 1, -1, 1]);
+    const waterVertexBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, waterVertexBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, waterPlaneVertices, gl.STATIC_DRAW);
+    const a_waterPosition = gl.getAttribLocation(waterProgram, "position");
+    gl.vertexAttribDivisor(a_waterPosition, 0);
+
     const resize = () => {
         viewW = Math.max(1, canvas.clientWidth);
         viewH = Math.max(1, canvas.clientHeight);
@@ -935,6 +1085,9 @@ async function main() {
         gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 
         gl.uniformMatrix4fv(u_projection, false, projectionMatrix);
+        gl.useProgram(waterProgram);
+        gl.uniformMatrix4fv(u_waterProjection, false, projectionMatrix);
+        gl.useProgram(program);
     };
 
     window.addEventListener("resize", resize);
@@ -1005,8 +1158,17 @@ async function main() {
             floodProgress = typeof data.progress === 'number' ? data.progress : 0;
             if (typeof data.startY === 'number') floodStartY = data.startY;
             if (typeof data.endY === 'number') floodEndY = data.endY;
-            // Compute the actual Y level based on progress
-            floodLevelY = floodStartY + (floodEndY - floodStartY) * floodProgress;
+            if (typeof data.minX === 'number') floodMinX = data.minX;
+            if (typeof data.maxX === 'number') floodMaxX = data.maxX;
+            if (typeof data.minZ === 'number') floodMinZ = data.minZ;
+            if (typeof data.maxZ === 'number') floodMaxZ = data.maxZ;
+            if (Array.isArray(data.rotationMatrix) && data.rotationMatrix.length === 16) {
+                floodRotationMatrix = new Float32Array(data.rotationMatrix);
+            }
+            if (Array.isArray(data.inverseRotationMatrix) && data.inverseRotationMatrix.length === 16) {
+                floodInverseRotationMatrix = new Float32Array(data.inverseRotationMatrix);
+            }
+            updateFloodBounds();
             return;
         }
         if (!data || data.type !== "splat-hand-control") return;
@@ -1027,6 +1189,15 @@ async function main() {
     worker.onmessage = (e) => {
         if (e.data.buffer) {
             splatData = new Uint8Array(e.data.buffer);
+            if (e.data.bounds) {
+                floodMinX = e.data.bounds.minX;
+                floodStartY = e.data.bounds.minY;
+                floodMinZ = e.data.bounds.minZ;
+                floodMaxX = e.data.bounds.maxX;
+                floodEndY = e.data.bounds.maxY;
+                floodMaxZ = e.data.bounds.maxZ;
+                updateFloodBounds();
+            }
             if (e.data.save) {
                 const blob = new Blob([splatData.buffer], {
                     type: "application/octet-stream",
@@ -1515,13 +1686,29 @@ async function main() {
 
         if (vertexCount > 0) {
             document.getElementById("spinner").style.display = "none";
-            gl.uniformMatrix4fv(u_view, false, actualViewMatrix);
-            
-            // Update flood uniforms
-            gl.uniform1f(u_floodLevelY, floodLevelY);
-            gl.uniform1f(u_time, now / 1000.0);
-            
             gl.clear(gl.COLOR_BUFFER_BIT);
+
+            gl.useProgram(waterProgram);
+            gl.uniformMatrix4fv(u_waterView, false, actualViewMatrix);
+            gl.uniformMatrix4fv(u_waterFloodInverseRotation, false, floodInverseRotationMatrix);
+            gl.uniform2f(u_waterBoundsMinXZ, floodMinX, floodMinZ);
+            gl.uniform2f(u_waterBoundsMaxXZ, floodMaxX, floodMaxZ);
+            gl.uniform1f(u_waterLevelY, floodLevelY);
+            gl.uniform1f(u_waterTime, now / 1000.0);
+            gl.uniform3f(u_waterColor, 0.435, 0.839, 1.0);
+            gl.uniform3f(u_waterCameraPos, inv2[12], inv2[13], inv2[14]);
+            gl.bindBuffer(gl.ARRAY_BUFFER, waterVertexBuffer);
+            gl.enableVertexAttribArray(a_waterPosition);
+            gl.vertexAttribPointer(a_waterPosition, 2, gl.FLOAT, false, 0, 0);
+            gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+
+            gl.useProgram(program);
+            gl.uniformMatrix4fv(u_view, false, actualViewMatrix);
+            gl.uniformMatrix4fv(u_floodRotation, false, floodRotationMatrix);
+            gl.uniform1f(u_floodLevelY, floodLevelY);
+            gl.uniform2f(u_floodBoundsMinXZ, floodMinX, floodMinZ);
+            gl.uniform2f(u_floodBoundsMaxXZ, floodMaxX, floodMaxZ);
+            gl.uniform1f(u_time, now / 1000.0);
             gl.drawArraysInstanced(gl.TRIANGLE_FAN, 0, 4, vertexCount);
         } else {
             gl.clear(gl.COLOR_BUFFER_BIT);

@@ -9,8 +9,10 @@ export default function Home() {
         <div>
           <div className="eyebrow">Sojs</div>
           <h1 className="dashboard-title">Location Dashboard</h1>
+          <p className="dashboard-copy">
+            Launch scene demos and turn each Sojs view into a research-ready stakeholder brief.
+          </p>
         </div>
-   
       </header>
 
       <section className="dashboard-grid" aria-label="Saved locations">

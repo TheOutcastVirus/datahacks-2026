@@ -21,6 +21,10 @@ export type ScenarioRecord = {
 export type FloodCalibration = {
   startY: number;
   endY: number;
+  minX?: number;
+  maxX?: number;
+  minZ?: number;
+  maxZ?: number;
 };
 
 export type FloodOverlayPoint = {
