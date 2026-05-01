@@ -2,6 +2,7 @@ import path from "node:path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   /** Use this app folder as the tracing root when multiple lockfiles exist (e.g. parent + frontend). */
   outputFileTracingRoot: path.join(__dirname),
   async headers() {

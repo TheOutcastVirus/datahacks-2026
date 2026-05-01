@@ -1,0 +1,8 @@
+# This .dockerignore is consulted when building with frontend/ as the context.
+# When building from the repo root (recommended, for git LFS), use the root .dockerignore.
+node_modules
+.next
+.git
+npm-debug.log
+.env*.local
+.DS_Store
