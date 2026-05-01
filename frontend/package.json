@@ -25,6 +25,8 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/three": "^0.184.0",
+    "@vercel/build-utils": "^13.21.0",
+    "@vercel/next": "^4.17.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
     "tailwindcss": "^4",
