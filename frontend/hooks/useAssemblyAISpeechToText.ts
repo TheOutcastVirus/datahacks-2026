@@ -48,10 +48,8 @@ function getSupportedFeatures() {
     return false;
   }
 
-  const AC =
-    window.AudioContext ||
-    (window as LegacyWindowAudio).webkitAudioContext;
-  return !!(navigator.mediaDevices?.getUserMedia && window.WebSocket && AC);
+  const hasAC = 'AudioContext' in window || 'webkitAudioContext' in window;
+  return !!(navigator.mediaDevices != null && 'WebSocket' in window && hasAC);
 }
 
 function subscribeToMicrophoneSupport(onStoreChange: () => void) {
@@ -229,7 +227,7 @@ async function createCaptureNode(
     return workletNode;
   }
 
-  const legacyNode = audioContext.createScriptProcessor(4096, 1, 1);
+  const legacyNode = (audioContext as unknown as AudioContext).createScriptProcessor(4096, 1, 1);
   legacyNode.onaudioprocess = (event) => {
     const channel = event.inputBuffer.getChannelData(0);
     const copy = new Float32Array(channel.length);
