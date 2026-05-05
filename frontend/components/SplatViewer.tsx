@@ -109,7 +109,7 @@ function handLandmarksUsableForThumbSteer(
 }
 
 const FLOOD_CALIBRATION_BY_URL: Record<string, FloodCalibration> = {
-  'https://pub-50214ff0627349c4adbbc380ffe13504.r2.dev/Cabbage-mvs_1012_04.ply': {
+  'https://datahacks-splats.vikram-kommera.workers.dev/Cabbage-mvs_1012_04.ply': {
     startY: 0.1356126070022583,
     endY: 0.4573782980442047,
   },
