@@ -1535,6 +1535,10 @@ async function main() {
         avgFps = avgFps * 0.9 + currentFps * 0.1;
 
         if (vertexCount > 0) {
+            if (!window.__sceneReadySent) {
+                window.__sceneReadySent = true;
+                window.parent.postMessage({ type: 'splat-scene-ready' }, '*');
+            }
             document.getElementById("spinner").style.display = "none";
             const baselineZ = (window.__debugWater?.baselineOverride != null)
                 ? window.__debugWater.baselineOverride

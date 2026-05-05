@@ -1414,6 +1414,11 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
       zoomInitialized.current = false;
       setIframeLoading(true);
       setLoadProgress(null);
+      // Reset the scene-ready flag inside the iframe so it fires again on next load
+      try {
+        const win = iframeRef.current?.contentWindow as (Window & { __sceneReadySent?: boolean }) | null;
+        if (win) win.__sceneReadySent = false;
+      } catch { /* cross-origin guard */ }
     }
   }, [splatUrl, usePlyRenderer]);
 
@@ -1421,9 +1426,9 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
     const handler = (e: MessageEvent) => {
       if (e.data?.type === 'splat-download-progress') {
         setLoadProgress({ loaded: e.data.loaded, total: e.data.total });
-        if (e.data.loaded >= e.data.total && e.data.total > 0) {
-          setIframeLoading(false);
-        }
+      }
+      if (e.data?.type === 'splat-scene-ready') {
+        setIframeLoading(false);
       }
       if (e.data?.type === 'splat-camera-pos') {
         setCamPos({ x: e.data.x, y: e.data.y, z: e.data.z });
@@ -1858,7 +1863,13 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
             background: 'linear-gradient(180deg, rgba(2,10,18,0.2), rgba(2,10,18,0.85))',
           }}
         >
-          <div>Loading {usePlyRenderer ? 'PLY scene' : 'Gaussian splat'}</div>
+          <div>
+            {usePlyRenderer
+              ? 'Loading PLY scene'
+              : (loadProgress && loadProgress.loaded < loadProgress.total)
+                ? 'Downloading scene'
+                : 'Building scene'}
+          </div>
           <div style={{ width: 220, height: 2, background: 'rgba(0,212,180,0.12)', position: 'relative', overflow: 'hidden' }}>
             {loadProgress && loadProgress.total > 0 ? (
               <div style={{
