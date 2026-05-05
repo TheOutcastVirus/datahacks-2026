@@ -47,7 +47,7 @@ export const LOCATIONS: LocationRecord[] = [
     region: 'Seattle, Washington',
     description:
       'Baseline capture for the Seattle waterfront render. Use this route as the entry point for future location-specific scenes.',
-    splatUrl: 'https://datahacks-splats.vikram-kommera.workers.dev/Cabbage-mvs_1012_04.ply',
+    splatUrl: 'https://pub-50214ff0627349c4adbbc380ffe13504.r2.dev/Cabbage-mvs_1012_04.ply',
     renderer: 'ply',
     hazardsUrl: '/locations/maine_hazards.json',
     status: 'Render Ready',
@@ -146,7 +146,7 @@ export const LOCATIONS: LocationRecord[] = [
     region: 'St. John, U.S. Virgin Islands',
     description:
       'Aerial photogrammetry capture of the Annaberg Sugar Plantation ruins. Gaussian splat render from the latest output.ply export.',
-    splatUrl: 'https://datahacks-splats.vikram-kommera.workers.dev/annaberg_output.ply',
+    splatUrl: 'https://pub-50214ff0627349c4adbbc380ffe13504.r2.dev/annaberg_output.ply',
     renderer: 'splat',
     status: 'Render Ready',
     updatedAt: 'April 19, 2026',
@@ -204,7 +204,7 @@ export const LOCATIONS: LocationRecord[] = [
     region: 'Local render capture',
     description:
       'Gaussian splat render from the latest output.ply export. Use this row to open the corrected splat renderer directly.',
-    splatUrl: 'https://datahacks-splats.vikram-kommera.workers.dev/maine_output.ply',
+    splatUrl: 'https://pub-50214ff0627349c4adbbc380ffe13504.r2.dev/maine_output.ply',
     renderer: 'splat',
     hazardsUrl: '/locations/maine_hazards.json',
     status: 'Render Ready',
