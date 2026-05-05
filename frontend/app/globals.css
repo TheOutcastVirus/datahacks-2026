@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+@keyframes splat-shimmer {
+  0%   { transform: translateX(-250%); }
+  100% { transform: translateX(600%); }
+}
+
 :root {
   --bg: #030c16;
   --bg-surface: #061525;

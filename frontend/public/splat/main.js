@@ -1665,6 +1665,7 @@ async function main() {
 
             splatData.set(value, bytesRead);
             bytesRead += value.length;
+            window.parent.postMessage({ type: 'splat-download-progress', loaded: bytesRead, total: contentLength }, '*');
 
             if (vertexCount > lastVertexCount) {
                 if (!isPly(splatData)) {

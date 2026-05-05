@@ -401,6 +401,8 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
     usePlyRenderer ? 'loading' : 'ready',
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [loadProgress, setLoadProgress] = useState<{ loaded: number; total: number } | null>(null);
+  const [iframeLoading, setIframeLoading] = useState(!usePlyRenderer);
   const [handControlEnabled, setHandControlEnabled] = useState(false);
   const [handStatus, setHandStatus] = useState<HandStatus>('inactive');
   const [hazards, setHazards] = useState<HazardMarker[]>([]);
@@ -656,7 +658,10 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
         controls.screenSpacePanning = false;
 
         const loader = new PLYLoader();
-        const loadedGeometry = await loader.loadAsync(splatUrl);
+        setLoadProgress({ loaded: 0, total: 0 });
+        const loadedGeometry = await loader.loadAsync(splatUrl, (e: ProgressEvent) => {
+          setLoadProgress({ loaded: e.loaded, total: e.total });
+        });
         if (isDisposed) {
           loadedGeometry.dispose();
           return;
@@ -1405,7 +1410,21 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
   const zoomInitialized = useRef(false);
 
   useEffect(() => {
+    if (!usePlyRenderer) {
+      zoomInitialized.current = false;
+      setIframeLoading(true);
+      setLoadProgress(null);
+    }
+  }, [splatUrl, usePlyRenderer]);
+
+  useEffect(() => {
     const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'splat-download-progress') {
+        setLoadProgress({ loaded: e.data.loaded, total: e.data.total });
+        if (e.data.loaded >= e.data.total && e.data.total > 0) {
+          setIframeLoading(false);
+        }
+      }
       if (e.data?.type === 'splat-camera-pos') {
         setCamPos({ x: e.data.x, y: e.data.y, z: e.data.z });
       }
@@ -1819,14 +1838,17 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
         ) : null}
         </div>
       </div>
-      {viewerState === 'loading' ? (
+      {(viewerState === 'loading' || iframeLoading) ? (
         <div
           style={{
             position: 'absolute',
             inset: 0,
+            zIndex: 30,
             display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
+            gap: 12,
             fontFamily: 'var(--font-mono)',
             fontSize: '11px',
             letterSpacing: '0.18em',
@@ -1836,7 +1858,30 @@ const SplatViewer = forwardRef<ViewerCommandApi, SplatViewerProps>(function Spla
             background: 'linear-gradient(180deg, rgba(2,10,18,0.2), rgba(2,10,18,0.85))',
           }}
         >
-          Loading {usePlyRenderer ? 'PLY scene' : 'Gaussian splat'}
+          <div>Loading {usePlyRenderer ? 'PLY scene' : 'Gaussian splat'}</div>
+          <div style={{ width: 220, height: 2, background: 'rgba(0,212,180,0.12)', position: 'relative', overflow: 'hidden' }}>
+            {loadProgress && loadProgress.total > 0 ? (
+              <div style={{
+                position: 'absolute', inset: 0,
+                width: `${Math.min(100, (loadProgress.loaded / loadProgress.total) * 100)}%`,
+                background: 'var(--accent)',
+                transition: 'width 0.1s linear',
+              }} />
+            ) : (
+              <div style={{
+                position: 'absolute', top: 0, bottom: 0, width: '40%',
+                background: 'linear-gradient(90deg, transparent, var(--accent), transparent)',
+                animation: 'splat-shimmer 1.4s linear infinite',
+              }} />
+            )}
+          </div>
+          {loadProgress && loadProgress.loaded > 0 ? (
+            <div style={{ fontSize: '10px', color: 'rgba(94,142,173,0.5)', letterSpacing: '0.1em' }}>
+              {loadProgress.total > 0
+                ? `${(loadProgress.loaded / 1_048_576).toFixed(1)} / ${(loadProgress.total / 1_048_576).toFixed(1)} MB`
+                : `${(loadProgress.loaded / 1_048_576).toFixed(1)} MB`}
+            </div>
+          ) : null}
         </div>
       ) : null}
       {viewerState === 'error' ? (
